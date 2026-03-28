@@ -4,13 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n client,worker -c blue,green \"npm:dev:client\" \"npm:dev:worker\"",
+    "dev:client": "vite --host 127.0.0.1 --port 4173",
     "dev:worker": "wrangler dev",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "d1:load:local": "python3 scripts/export_postgres_to_d1_sql.py && wrangler d1 execute DB --local --file build/d1/load.sql",
-    "d1:load:raw:local": "python3 scripts/load_app_from_raw.py --load-d1"
+    "d1:load:local": "python3 scripts/load_app_from_raw.py --load-d1",
+    "d1:load:remote": "python3 scripts/load_app_from_raw.py --load-d1 --d1-remote"
   },
   "keywords": [],
   "author": "",
@@ -31,6 +32,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
     "drizzle-kit": "^0.31.10",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",

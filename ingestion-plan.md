@@ -6,7 +6,7 @@
 2. Use the Wikidata IMDb ID to pull matching rows from IMDb datasets
 3. Save filtered source snapshots as raw files on disk
 4. Keep raw files as the source for ingestion and internal processing
-5. Use Postgres only for the application schema and app operations
+5. Use Cloudflare D1 only for the application schema and app operations
 
 ## Why this is the right split
 
@@ -91,17 +91,12 @@ Relevant counts:
 
 ## Database setup
 
-Local Postgres installed with Homebrew:
-- formula: `postgresql@17`
-- service: `brew services start postgresql@17`
-- database: `movie_filter`
+Application database:
+- Cloudflare D1
+- Wrangler local D1 for development
+- remote D1 for deployed environments
 
 ## Scripts and schema files
-
-- `scripts/setup_postgres.sh`
-  - installs Postgres if missing
-  - starts the service
-  - creates the `movie_filter` database
 
 - `scripts/download_raw_90s.py`
   - downloads the scoped Wikidata movie list
@@ -111,12 +106,12 @@ Local Postgres installed with Homebrew:
 
 - `scripts/load_app_from_raw.py`
   - builds canonical app-table CSV files directly from `raw/`
-  - can also load those CSV files into Postgres `public`
-  - currently targets the singular table names from `postgres-schema.md`
+  - can also load those CSV files directly into D1
+  - currently targets the singular table names from `d1-schema.md`
 
-- `postgres-schema.md`
+- `d1-schema.md`
   - documents the planned application schema
-  - this markdown file is the schema source of truth until Prisma is introduced
+  - this markdown file is the schema source of truth for the D1 app database
 
 ## Current canonical output counts
 
@@ -132,14 +127,13 @@ Current canonical app-load output from `scripts/load_app_from_raw.py`:
 ## Current status
 
 Completed:
-1. Postgres installed and running locally
-2. Raw files downloaded to `raw/`
-3. Planned app schema documented in `postgres-schema.md`
-4. Canonical app-load script written
-5. Old custom schema removed
-6. Data loaded into PostgreSQL `public`
+1. Raw files downloaded to `raw/`
+2. Planned app schema documented in `d1-schema.md`
+3. Canonical app-load script written
+4. Old custom schema removed
+5. Data loaded into local D1
 
 Next:
-1. Translate the schema into Prisma models later
-2. Reconcile Prisma migrations with the existing `public` tables
-3. Add app-level filters for allowed title types
+1. Keep D1 as the only app database target
+2. Add app-level filters for allowed title types
+3. Load the same canonical dataset into remote D1 for deployment

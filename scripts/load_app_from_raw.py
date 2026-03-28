@@ -2,7 +2,6 @@
 import argparse
 import csv
 import json
-import os
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -10,9 +9,8 @@ from pathlib import Path
 
 RAW_DIR = Path("raw")
 BUILD_DIR = Path("build/app_load")
-PSQL = os.environ.get("PSQL", "/opt/homebrew/opt/postgresql@17/bin/psql")
-DB_NAME = os.environ.get("MOVIE_FILTER_DB", "movie_filter")
 CAST_CATEGORIES = {"actor", "actress", "self"}
+SCHEMA_SQL_PATH = Path("drizzle/0000_initial.sql")
 D1_SQL_PATH = BUILD_DIR / "load_d1.sql"
 D1_TABLES = [
     ("movie", ["id", "title", "release_year", "release_date", "film_type", "budget", "box_office", "created_at", "updated_at"]),
@@ -482,43 +480,6 @@ def write_output(rows_by_table, output_dir: Path):
     return manifest
 
 
-def run_psql(sql: str):
-    subprocess.run([PSQL, "-d", DB_NAME, "-v", "ON_ERROR_STOP=1", "-c", sql], check=True)
-
-
-def copy_csv(table: str, columns, path: Path, schema: str):
-    columns_sql = ", ".join(columns)
-    sql = f"\\copy {schema}.{table}({columns_sql}) FROM '{path.resolve()}' WITH (FORMAT csv, HEADER true)"
-    run_psql(sql)
-
-
-def reset_sequences(schema: str):
-    statements = [
-        f"SELECT setval(pg_get_serial_sequence('{schema}.movie', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM {schema}.movie;",
-        f"SELECT setval(pg_get_serial_sequence('{schema}.genre', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM {schema}.genre;",
-        f"SELECT setval(pg_get_serial_sequence('{schema}.person', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM {schema}.person;",
-        f"SELECT setval(pg_get_serial_sequence('{schema}.company', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM {schema}.company;",
-    ]
-    for statement in statements:
-        run_psql(statement)
-
-
-def load_to_postgres(output_dir: Path, schema: str, truncate: bool):
-    if truncate:
-        run_psql(
-            f"TRUNCATE {schema}.movie_company, {schema}.movie_person, {schema}.movie_genre, {schema}.company, {schema}.person, {schema}.genre, {schema}.movie RESTART IDENTITY CASCADE"
-        )
-
-    copy_csv("movie", ["id", "title", "release_year", "release_date", "film_type", "budget", "box_office", "created_at", "updated_at"], output_dir / "movie.csv", schema)
-    copy_csv("genre", ["id", "name"], output_dir / "genre.csv", schema)
-    copy_csv("person", ["id", "name", "created_at", "updated_at"], output_dir / "person.csv", schema)
-    copy_csv("company", ["id", "name", "created_at", "updated_at"], output_dir / "company.csv", schema)
-    copy_csv("movie_genre", ["movie_id", "genre_id"], output_dir / "movie_genre.csv", schema)
-    copy_csv("movie_person", ["movie_id", "person_id", "role_type", "credit_order"], output_dir / "movie_person.csv", schema)
-    copy_csv("movie_company", ["movie_id", "company_id", "role_type"], output_dir / "movie_company.csv", schema)
-    reset_sequences(schema)
-
-
 def sql_value(value):
     if value is None or value == "":
         return "NULL"
@@ -542,8 +503,10 @@ def batched(items, size):
 
 def write_d1_load_sql(rows_by_table, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
+    schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8").strip()
     with path.open("w", encoding="utf-8") as f:
-        f.write("BEGIN TRANSACTION;\n")
+        f.write(schema_sql)
+        f.write("\n\nBEGIN TRANSACTION;\n")
         f.write("PRAGMA foreign_keys = OFF;\n")
         for table, _ in reversed(D1_TABLES):
             f.write(f"DELETE FROM {table};\n")
@@ -571,9 +534,6 @@ def load_to_d1(rows_by_table, sql_path: Path, binding: str, remote: bool):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", default=str(BUILD_DIR))
-    parser.add_argument("--load", action="store_true", help="load generated CSV files into Postgres")
-    parser.add_argument("--schema", default="public", help="target Postgres schema for app tables")
-    parser.add_argument("--truncate", action="store_true", help="truncate target Postgres tables before load")
     parser.add_argument("--load-d1", action="store_true", help="load generated app data directly into Cloudflare D1")
     parser.add_argument("--d1-binding", default="DB", help="Wrangler D1 binding name")
     parser.add_argument("--d1-remote", action="store_true", help="execute D1 load against the remote database instead of local")
@@ -584,9 +544,6 @@ def main():
     output_dir = Path(args.output_dir)
     manifest = write_output(rows_by_table, output_dir)
     print(json.dumps(manifest, indent=2))
-
-    if args.load:
-        load_to_postgres(output_dir, args.schema, args.truncate)
 
     if args.load_d1:
         load_to_d1(rows_by_table, Path(args.d1_sql_path), args.d1_binding, args.d1_remote)
