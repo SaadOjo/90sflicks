@@ -14,6 +14,7 @@ const DEFAULT_YEARS: number[] = [];
 const DEFAULT_GENRES: string[] = [];
 const DEFAULT_FILM_TYPES: string[] = [];
 const EMPTY_RANGE_FILTER: NumericRangeFilter = { knownOnly: false };
+const FULL_DECADE_YEARS = Array.from({ length: 10 }, (_, index) => 1990 + index);
 
 const BUDGET_PRESETS = {
   'Under $10M': { max: 10_000_000 },
@@ -80,9 +81,7 @@ export function ArchivePage() {
     archiveMovies.forEach((movie) => {
       counts.set(movie.releaseYear, (counts.get(movie.releaseYear) ?? 0) + 1);
     });
-    return Array.from(counts.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([year, count]) => ({ year, count }));
+    return FULL_DECADE_YEARS.map((year) => ({ year, count: counts.get(year) ?? 0 }));
   }, []);
 
   const genres = useMemo(
