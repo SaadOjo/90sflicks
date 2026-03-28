@@ -8,6 +8,7 @@
     "dev:worker": "wrangler dev",
     "build": "vite build",
     "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
     "d1:load:local": "python3 scripts/export_postgres_to_d1_sql.py && wrangler d1 execute DB --local --file build/d1/load.sql",
     "d1:load:raw:local": "python3 scripts/load_app_from_raw.py --load-d1"
   },

@@ -2,6 +2,11 @@ name = "movie-filter"
 main = "src/server/index.ts"
 compatibility_date = "2026-03-28"
 
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "movie-filter"
