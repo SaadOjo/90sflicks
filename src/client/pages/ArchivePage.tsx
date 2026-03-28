@@ -5,8 +5,17 @@ import { FilterSidebar } from '../components/FilterSidebar';
 import { MovieCard } from '../components/MovieCard';
 import { Pagination } from '../components/Pagination';
 import { TopBar } from '../components/TopBar';
+import { useAutocompleteSuggestions } from '../hooks/useAutocompleteSuggestions';
+import {
+  buildGenreOptions,
+  buildTypeOptions,
+  buildYearOptions,
+  filterArchiveMovies,
+  normalize,
+  type SortOption,
+} from '../lib/archiveFilters';
 import { ARCHIVE_INDEXED_COUNT, archiveMovies } from '../lib/mockData';
-import { formatCompactNumber, formatFilmType } from '../lib/formatters';
+import { formatCompactNumber } from '../lib/formatters';
 import { searchCompanies } from '../lib/companySearch';
 import { searchPeople } from '../lib/peopleSearch';
 
@@ -28,27 +37,8 @@ const BOX_OFFICE_PRESETS = {
   '$200M+': { min: 200_000_000 },
 } as const;
 
-type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget';
 type BudgetPresetLabel = keyof typeof BUDGET_PRESETS;
 type BoxOfficePresetLabel = keyof typeof BOX_OFFICE_PRESETS;
-
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function matchesNumericRange(value: number | undefined, filter: NumericRangeFilter): boolean {
-  if (filter.knownOnly && value == null) {
-    return false;
-  }
-
-  if (filter.min != null || filter.max != null) {
-    if (value == null) return false;
-    if (filter.min != null && value < filter.min) return false;
-    if (filter.max != null && value > filter.max) return false;
-  }
-
-  return true;
-}
 
 export function ArchivePage() {
   const [selectedYears, setSelectedYears] = useState<number[]>(DEFAULT_YEARS);
@@ -57,13 +47,9 @@ export function ArchivePage() {
 
   const [peopleQuery, setPeopleQuery] = useState('');
   const [selectedPeople, setSelectedPeople] = useState<PersonSuggestion[]>([]);
-  const [peopleSuggestions, setPeopleSuggestions] = useState<PersonSuggestion[]>([]);
-  const [isPeopleLoading, setIsPeopleLoading] = useState(false);
 
   const [companyQuery, setCompanyQuery] = useState('');
   const [selectedCompanies, setSelectedCompanies] = useState<CompanySuggestion[]>([]);
-  const [companySuggestions, setCompanySuggestions] = useState<CompanySuggestion[]>([]);
-  const [isCompanyLoading, setIsCompanyLoading] = useState(false);
 
   const [budgetFilter, setBudgetFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
   const [boxOfficeFilter, setBoxOfficeFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
@@ -76,113 +62,48 @@ export function ArchivePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const years = useMemo(() => {
-    const counts = new Map<number, number>();
-    archiveMovies.forEach((movie) => {
-      counts.set(movie.releaseYear, (counts.get(movie.releaseYear) ?? 0) + 1);
-    });
-    return FULL_DECADE_YEARS.map((year) => ({ year, count: counts.get(year) ?? 0 }));
-  }, []);
+  const years = useMemo(() => buildYearOptions(archiveMovies, FULL_DECADE_YEARS), []);
+  const genreOptions = useMemo(() => buildGenreOptions(archiveMovies), []);
+  const typeOptions = useMemo(() => buildTypeOptions(archiveMovies), []);
 
-  const genres = useMemo(
-    () => Array.from(new Set(archiveMovies.flatMap((movie) => movie.genres))).sort((a, b) => a.localeCompare(b)),
-    [],
+  const { suggestions: peopleSuggestions, isLoading: isPeopleLoading } = useAutocompleteSuggestions({
+    query: peopleQuery,
+    search: searchPeople,
+    selectedItems: selectedPeople,
+  });
+
+  const { suggestions: companySuggestions, isLoading: isCompanyLoading } = useAutocompleteSuggestions({
+    query: companyQuery,
+    search: searchCompanies,
+    selectedItems: selectedCompanies,
+  });
+
+  const selectedPeopleNames = useMemo(() => selectedPeople.map((person) => normalize(person.name)), [selectedPeople]);
+  const selectedCompanyNames = useMemo(() => selectedCompanies.map((company) => normalize(company.name)), [selectedCompanies]);
+
+  const filteredMovies = useMemo(
+    () =>
+      filterArchiveMovies(archiveMovies, {
+        selectedYears,
+        selectedGenres,
+        selectedFilmTypes,
+        selectedPeopleNames,
+        selectedCompanyNames,
+        budgetFilter,
+        boxOfficeFilter,
+        sortValue,
+      }),
+    [
+      boxOfficeFilter,
+      budgetFilter,
+      selectedCompanyNames,
+      selectedFilmTypes,
+      selectedGenres,
+      selectedPeopleNames,
+      selectedYears,
+      sortValue,
+    ],
   );
-
-  const filmTypes = useMemo(
-    () => Array.from(new Set(archiveMovies.map((movie) => formatFilmType(movie.filmType)))).sort((a, b) => a.localeCompare(b)),
-    [],
-  );
-
-  useEffect(() => {
-    const query = peopleQuery.trim();
-    if (query.length < 2) {
-      setPeopleSuggestions([]);
-      setIsPeopleLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsPeopleLoading(true);
-
-    const timeoutId = window.setTimeout(async () => {
-      const results = await searchPeople(query);
-      if (!cancelled) {
-        const selectedIds = new Set(selectedPeople.map((person) => person.id));
-        setPeopleSuggestions(results.filter((person) => !selectedIds.has(person.id)));
-        setIsPeopleLoading(false);
-      }
-    }, 200);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [peopleQuery, selectedPeople]);
-
-  useEffect(() => {
-    const query = companyQuery.trim();
-    if (query.length < 2) {
-      setCompanySuggestions([]);
-      setIsCompanyLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsCompanyLoading(true);
-
-    const timeoutId = window.setTimeout(async () => {
-      const results = await searchCompanies(query);
-      if (!cancelled) {
-        const selectedIds = new Set(selectedCompanies.map((company) => company.id));
-        setCompanySuggestions(results.filter((company) => !selectedIds.has(company.id)));
-        setIsCompanyLoading(false);
-      }
-    }, 200);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [companyQuery, selectedCompanies]);
-
-  const filteredMovies = useMemo(() => {
-    const selectedPeopleNames = selectedPeople.map((person) => normalize(person.name));
-    const selectedCompanyNames = selectedCompanies.map((company) => normalize(company.name));
-
-    const filtered = archiveMovies.filter((movie) => {
-      const yearMatch = selectedYears.length === 0 || selectedYears.includes(movie.releaseYear);
-      const genreMatch = selectedGenres.length === 0 || selectedGenres.some((genre) => movie.genres.includes(genre));
-      const filmTypeLabel = formatFilmType(movie.filmType);
-      const filmTypeMatch = selectedFilmTypes.length === 0 || selectedFilmTypes.includes(filmTypeLabel);
-      const peopleMatch =
-        selectedPeopleNames.length === 0 ||
-        movie.credits.some((credit) => selectedPeopleNames.includes(normalize(credit.name)));
-      const companyMatch =
-        selectedCompanyNames.length === 0 ||
-        movie.companies.some((company) => selectedCompanyNames.includes(normalize(company.name)));
-      const budgetMatch = matchesNumericRange(movie.budget, budgetFilter);
-      const boxOfficeMatch = matchesNumericRange(movie.boxOffice, boxOfficeFilter);
-
-      return yearMatch && genreMatch && filmTypeMatch && peopleMatch && companyMatch && budgetMatch && boxOfficeMatch;
-    });
-
-    filtered.sort((left, right) => {
-      switch (sortValue) {
-        case 'title':
-          return left.title.localeCompare(right.title);
-        case 'boxOffice':
-          return (right.boxOffice ?? -1) - (left.boxOffice ?? -1);
-        case 'budget':
-          return (right.budget ?? -1) - (left.budget ?? -1);
-        case 'releaseDate':
-        default:
-          return (right.releaseDate ?? '').localeCompare(left.releaseDate ?? '');
-      }
-    });
-
-    return filtered;
-  }, [selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, sortValue]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMovies.length / pageSize));
 
@@ -215,10 +136,8 @@ export function ArchivePage() {
     setSelectedFilmTypes([]);
     setPeopleQuery('');
     setSelectedPeople([]);
-    setPeopleSuggestions([]);
     setCompanyQuery('');
     setSelectedCompanies([]);
-    setCompanySuggestions([]);
     setBudgetFilter(EMPTY_RANGE_FILTER);
     setBoxOfficeFilter(EMPTY_RANGE_FILTER);
     setSelectedBudgetPreset(null);
@@ -229,7 +148,6 @@ export function ArchivePage() {
   const handleSelectPerson = (person: PersonSuggestion) => {
     setSelectedPeople((current) => [...current, person]);
     setPeopleQuery('');
-    setPeopleSuggestions([]);
   };
 
   const handleRemovePerson = (personId: string) => {
@@ -239,7 +157,6 @@ export function ArchivePage() {
   const handleSelectCompany = (company: CompanySuggestion) => {
     setSelectedCompanies((current) => [...current, company]);
     setCompanyQuery('');
-    setCompanySuggestions([]);
   };
 
   const handleRemoveCompany = (companyId: string) => {
@@ -279,8 +196,7 @@ export function ArchivePage() {
         budgetFilter={budgetFilter}
         companyQuery={companyQuery}
         companySuggestions={companySuggestions}
-        filmTypes={filmTypes}
-        genres={genres}
+        genreOptions={genreOptions}
         isCompanyLoading={isCompanyLoading}
         isPeopleLoading={isPeopleLoading}
         peopleQuery={peopleQuery}
@@ -292,6 +208,7 @@ export function ArchivePage() {
         selectedGenres={selectedGenres}
         selectedPeople={selectedPeople}
         selectedYears={selectedYears}
+        typeOptions={typeOptions}
         years={years}
         onBoxOfficeFilterChange={setBoxOfficeFilter}
         onBoxOfficePresetSelect={handleBoxOfficePresetSelect}
@@ -309,8 +226,12 @@ export function ArchivePage() {
         onYearToggle={(value) => setSelectedYears((current) => toggleNumber(current, value))}
       />
 
-      <main className={`mt-16 min-h-screen px-6 py-6 lg:ml-72 ${isDetailsPanelOpen ? 'lg:mr-[380px]' : 'lg:mr-0'}`}>
-        <div className="mx-auto max-w-4xl">
+      <main
+        className={`mt-16 min-h-screen px-6 py-6 transition-[margin] duration-200 ease-out lg:ml-72 ${
+          isDetailsPanelOpen ? 'lg:mr-[380px]' : 'lg:mr-0'
+        }`}
+      >
+        <div className={`mx-auto transition-[max-width] duration-200 ease-out ${isDetailsPanelOpen ? 'max-w-4xl' : 'max-w-6xl'}`}>
           <div className="mb-8">
             <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-500">

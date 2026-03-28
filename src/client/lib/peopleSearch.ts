@@ -1,86 +1,19 @@
 import type { ArchiveMovie, MoviePersonRole, PersonSuggestion } from '../../shared/types/archive';
 import { archiveMovies } from './mockData';
+import { buildEntityIndex, searchEntityIndex } from './entitySearch';
 
 const ROLE_ORDER: MoviePersonRole[] = ['director', 'writer', 'producer', 'cast'];
 
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function isSubsequence(query: string, target: string): boolean {
-  let queryIndex = 0;
-  for (let index = 0; index < target.length && queryIndex < query.length; index += 1) {
-    if (target[index] === query[queryIndex]) {
-      queryIndex += 1;
-    }
-  }
-  return queryIndex === query.length;
-}
-
-function scoreMatch(query: string, candidate: string): number {
-  if (candidate === query) return 100;
-  if (candidate.startsWith(query)) return 80;
-  if (candidate.includes(query)) return 60;
-
-  const candidateTokens = candidate.split(/\s+/);
-  if (candidateTokens.some((token) => token.startsWith(query))) return 45;
-  if (isSubsequence(query, candidate)) return 25;
-
-  return 0;
-}
-
 function buildPeopleIndex(movies: ArchiveMovie[]): PersonSuggestion[] {
-  const byName = new Map<string, PersonSuggestion>();
-
-  movies.forEach((movie) => {
-    const seenInMovie = new Set<string>();
-
-    movie.credits.forEach((credit) => {
-      const key = normalize(credit.name);
-      const current = byName.get(key) ?? {
-        id: key,
-        name: credit.name,
-        roles: [],
-        movieCount: 0,
-      };
-
-      if (!current.roles.includes(credit.roleType)) {
-        current.roles.push(credit.roleType);
-        current.roles.sort((left, right) => ROLE_ORDER.indexOf(left) - ROLE_ORDER.indexOf(right));
-      }
-
-      if (!seenInMovie.has(key)) {
-        current.movieCount += 1;
-        seenInMovie.add(key);
-      }
-
-      byName.set(key, current);
-    });
-  });
-
-  return Array.from(byName.values()).sort((left, right) => left.name.localeCompare(right.name));
+  return buildEntityIndex(
+    movies,
+    (movie) => movie.credits.map((credit) => ({ name: credit.name, roleType: credit.roleType })),
+    ROLE_ORDER,
+  );
 }
 
 const PEOPLE_INDEX = buildPeopleIndex(archiveMovies);
 
-export async function searchPeople(query: string, limit = 8): Promise<PersonSuggestion[]> {
-  const normalizedQuery = normalize(query);
-  if (normalizedQuery.length < 2) {
-    return [];
-  }
-
-  const results = PEOPLE_INDEX.map((person) => ({
-    person,
-    score: scoreMatch(normalizedQuery, normalize(person.name)),
-  }))
-    .filter((entry) => entry.score > 0)
-    .sort((left, right) => {
-      if (right.score !== left.score) return right.score - left.score;
-      if (right.person.movieCount !== left.person.movieCount) return right.person.movieCount - left.person.movieCount;
-      return left.person.name.localeCompare(right.person.name);
-    })
-    .slice(0, limit)
-    .map((entry) => entry.person);
-
-  return Promise.resolve(results);
+export function searchPeople(query: string, limit = 8): Promise<PersonSuggestion[]> {
+  return searchEntityIndex(PEOPLE_INDEX, query, limit);
 }

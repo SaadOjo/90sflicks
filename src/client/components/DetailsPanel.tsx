@@ -40,11 +40,13 @@ export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
     <>
       <button
         aria-label={isOpen ? 'Hide details panel' : 'Show details panel'}
-        className="fixed top-24 right-0 z-40 hidden rounded-l-md border border-r-0 border-slate-200 bg-white px-2 py-5 text-slate-500 shadow-sm transition-colors hover:text-slate-900 lg:block"
+        className={`fixed top-24 z-40 hidden h-16 w-5 items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-white text-slate-500 transition-[right,color] duration-200 hover:text-slate-900 lg:flex ${
+          isOpen ? 'right-[360px]' : 'right-0'
+        }`}
         onClick={onToggle}
         type="button"
       >
-        <span className="material-symbols-outlined text-lg">{isOpen ? 'chevron_right' : 'chevron_left'}</span>
+        <span className="material-symbols-outlined text-sm">{isOpen ? 'chevron_right' : 'chevron_left'}</span>
       </button>
 
       <aside
@@ -52,7 +54,7 @@ export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="space-y-8 p-6">
+        <div className="space-y-8 py-6 pr-6 pl-10">
           {movie ? (
             <>
               <div>
