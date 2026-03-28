@@ -10,60 +10,51 @@ interface MovieCardProps {
 
 export function MovieCard({ movie, selected, onSelect }: MovieCardProps) {
   const directors = getCreditsByRole(movie, 'director').map((credit) => credit.name).join(', ');
-  const mainCast = getMainCast(movie).map((credit) => credit.name);
+  const mainCast = getMainCast(movie).map((credit) => credit.name).join(', ');
+  const boxOffice = movie.boxOffice != null ? formatCurrency(movie.boxOffice) : null;
 
   return (
     <article
       className={selected
-        ? 'group relative cursor-pointer overflow-hidden border border-transparent border-l-4 border-l-tertiary bg-white p-6 shadow-sm transition-all hover:border-outline-variant'
-        : 'group relative cursor-pointer overflow-hidden border border-transparent bg-surface-container-low p-6 transition-all hover:border-outline-variant'}
+        ? 'cursor-pointer rounded-xl border border-primary/20 bg-white p-5 shadow-sm ring-1 ring-primary/10 transition-colors'
+        : 'cursor-pointer rounded-xl border border-slate-200/80 bg-white p-5 transition-colors hover:border-slate-300 hover:bg-slate-50'}
       onClick={() => onSelect(movie)}
     >
-      <div className="absolute top-0 right-0 p-4">
-        <span className={`material-symbols-outlined text-tertiary ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-          {selected ? 'radio_button_checked' : 'arrow_forward_ios'}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="font-headline text-2xl font-semibold text-slate-900">{movie.title}</h3>
+            <span className="text-sm text-slate-500">{movie.releaseYear}</span>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+            <span>{formatDisplayDate(movie.releaseDate)}</span>
+            {movie.genres.length > 0 ? <span>•</span> : null}
+            <span>{movie.genres.join(', ')}</span>
+          </div>
+        </div>
+
+        <span className={selected ? 'rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-white' : 'rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600'}>
+          {formatFilmType(movie.filmType)}
         </span>
       </div>
 
-      <div className="mb-4 flex items-start justify-between gap-6">
-        <div className="flex flex-wrap items-baseline gap-4">
-          <span className="font-headline text-3xl leading-tight font-bold text-slate-900">{movie.title.toUpperCase()}</span>
-          <span className="font-headline text-lg font-medium text-tertiary">[ {movie.releaseYear} ]</span>
+      <div className="mt-4 grid gap-3 text-sm text-slate-600 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <span className="block text-xs font-medium text-slate-400">Director</span>
+          <span className="block truncate text-slate-800">{directors || 'Unknown'}</span>
         </div>
-        <span className="bg-primary px-2 py-1 text-[10px] font-bold tracking-widest text-white">
-          {formatFilmType(movie.filmType).toUpperCase()}
-        </span>
-      </div>
-
-      <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-4">
-        <div>
-          <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Release Date</span>
-          <span className="block font-body text-xs font-semibold text-slate-700">{formatDisplayDate(movie.releaseDate).toUpperCase()}</span>
-        </div>
-        <div>
-          <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Genres</span>
-          <span className="block font-body text-xs font-semibold text-slate-700">{movie.genres.join(', ').toUpperCase()}</span>
-        </div>
-        <div>
-          <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Director</span>
-          <span className="block font-body text-xs font-semibold text-slate-700">{directors.toUpperCase() || 'UNKNOWN'}</span>
-        </div>
-        <div>
-          <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Box Office</span>
-          <span className="block font-body text-xs font-semibold text-tertiary">{formatCurrency(movie.boxOffice).toUpperCase()}</span>
+        <div className="min-w-0">
+          <span className="block text-xs font-medium text-slate-400">Cast</span>
+          <span className="block truncate text-slate-800">{mainCast || 'Unknown'}</span>
         </div>
       </div>
 
-      <div className="border-t border-outline-variant/30 pt-4">
-        <span className="mb-2 block font-label text-[10px] font-bold uppercase text-slate-400">Cast</span>
-        <div className="flex flex-wrap gap-4">
-          {mainCast.map((name) => (
-            <span key={name} className="font-body text-[11px] text-slate-600">
-              {name.toUpperCase()}
-            </span>
-          ))}
+      {boxOffice ? (
+        <div className="mt-4 text-sm text-slate-600">
+          <span className="mr-2 text-xs font-medium text-slate-400">Box office</span>
+          <span className="font-medium text-slate-800">{boxOffice}</span>
         </div>
-      </div>
+      ) : null}
     </article>
   );
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { ArchiveMovie } from '../../shared/types/archive';
 import { formatCurrency, formatDisplayDate, formatFilmType } from '../lib/formatters';
 import { getCompaniesByRole, getCreditsByRole, getMainCast } from '../lib/movieSelectors';
@@ -8,6 +9,24 @@ interface DetailsPanelProps {
   onToggle: () => void;
 }
 
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <h3 className="border-b border-slate-200 pb-2 text-sm font-semibold text-slate-900">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function MetaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium text-slate-400">{label}</dt>
+      <dd className="mt-1 text-sm text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
 export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
   const directors = movie ? getCreditsByRole(movie, 'director') : [];
   const writers = movie ? getCreditsByRole(movie, 'writer') : [];
@@ -15,12 +34,13 @@ export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
   const cast = movie ? getMainCast(movie, 8) : [];
   const productionCompanies = movie ? getCompaniesByRole(movie, 'production') : [];
   const distributionCompanies = movie ? getCompaniesByRole(movie, 'distribution') : [];
+  const hasFinancials = movie && (movie.budget != null || movie.boxOffice != null);
 
   return (
     <>
       <button
         aria-label={isOpen ? 'Hide details panel' : 'Show details panel'}
-        className="fixed top-24 right-0 z-40 hidden border border-r-0 border-slate-200 bg-white px-2 py-6 text-slate-500 transition-colors hover:text-slate-900 lg:block"
+        className="fixed top-24 right-0 z-40 hidden rounded-l-md border border-r-0 border-slate-200 bg-white px-2 py-5 text-slate-500 shadow-sm transition-colors hover:text-slate-900 lg:block"
         onClick={onToggle}
         type="button"
       >
@@ -28,114 +48,72 @@ export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
       </button>
 
       <aside
-        className={`fixed right-0 top-16 bottom-0 hidden w-[400px] overflow-y-auto border-l border-slate-200 bg-white transition-transform duration-200 lg:block ${
+        className={`fixed right-0 top-16 bottom-0 hidden w-[380px] overflow-y-auto border-l border-slate-200/80 bg-white transition-transform duration-200 lg:block ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="p-8">
+        <div className="space-y-8 p-6">
           {movie ? (
             <>
-              <div className="mb-12 flex items-start justify-between">
-                <span className="border border-tertiary px-2 py-1 font-label text-[10px] font-bold uppercase tracking-widest text-tertiary">
-                  Selected Entry
-                </span>
+              <div>
+                <p className="text-xs font-medium text-slate-400">Selected movie</p>
+                <h2 className="mt-2 font-headline text-3xl font-semibold text-slate-900">{movie.title}</h2>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                  <span>{movie.releaseYear}</span>
+                  <span>•</span>
+                  <span>{formatFilmType(movie.filmType)}</span>
+                </div>
               </div>
 
-              <h2 className="mb-2 font-headline text-5xl font-black tracking-tighter text-slate-900 uppercase">{movie.title}</h2>
+              <Section title="Details">
+                <dl className="space-y-4">
+                  <MetaRow label="Release date" value={formatDisplayDate(movie.releaseDate)} />
+                  <MetaRow label="Genres" value={movie.genres.join(', ') || 'Unknown'} />
+                  <MetaRow label="Film type" value={formatFilmType(movie.filmType)} />
+                </dl>
+              </Section>
 
-              <div className="mb-10 flex items-center gap-2">
-                <span className="font-label text-[11px] font-bold uppercase text-slate-500">
-                  Format: {formatFilmType(movie.filmType)}
-                </span>
-                <div className="h-px flex-grow bg-outline-variant/30" />
-                <span className="font-label text-[11px] font-bold uppercase text-tertiary">{movie.releaseYear}</span>
-              </div>
+              {hasFinancials ? (
+                <Section title="Financials">
+                  <dl className="grid grid-cols-2 gap-4">
+                    {movie.budget != null ? <MetaRow label="Budget" value={formatCurrency(movie.budget)} /> : null}
+                    {movie.boxOffice != null ? <MetaRow label="Box office" value={formatCurrency(movie.boxOffice)} /> : null}
+                  </dl>
+                </Section>
+              ) : null}
 
-              <div className="space-y-12">
-                <section>
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="font-label text-[11px] font-black uppercase tracking-widest text-slate-900">Details</span>
-                    <div className="h-px flex-grow bg-slate-900" />
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Release Date</span>
-                      <span className="block font-body text-xs font-medium text-slate-900">{formatDisplayDate(movie.releaseDate)}</span>
-                    </div>
-                    <div>
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Genres</span>
-                      <span className="block font-body text-xs font-medium text-slate-900">{movie.genres.join(', ') || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Film Type</span>
-                      <span className="block font-body text-xs font-medium text-slate-900">{formatFilmType(movie.filmType)}</span>
-                    </div>
-                  </div>
-                </section>
-
-                <section>
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="font-label text-[11px] font-black uppercase tracking-widest text-slate-900">Financials</span>
-                    <div className="h-px flex-grow bg-slate-900" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="border border-slate-100 bg-slate-50 p-4">
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Budget</span>
-                      <span className="block font-headline text-xl font-bold text-slate-900">{formatCurrency(movie.budget)}</span>
-                    </div>
-                    <div className="border border-slate-100 bg-slate-50 p-4">
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Box Office</span>
-                      <span className="block font-headline text-xl font-bold text-tertiary">{formatCurrency(movie.boxOffice)}</span>
-                    </div>
-                  </div>
-                </section>
-
-                <section>
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="font-label text-[11px] font-black uppercase tracking-widest text-slate-900">Companies</span>
-                    <div className="h-px flex-grow bg-slate-900" />
-                  </div>
-                  <ul className="space-y-3">
-                    {[...distributionCompanies, ...productionCompanies].map((company) => (
-                      <li key={`${company.roleType}-${company.name}`} className="group flex justify-between items-baseline">
-                        <span className="font-body text-xs text-slate-600 transition-colors group-hover:text-slate-900">{company.name}</span>
-                        <span className="font-label text-[9px] uppercase text-slate-400">{company.roleType}</span>
+              <Section title="Companies">
+                {distributionCompanies.length === 0 && productionCompanies.length === 0 ? (
+                  <p className="text-sm text-slate-500">No company data available.</p>
+                ) : (
+                  <ul className="space-y-3 text-sm text-slate-700">
+                    {distributionCompanies.map((company) => (
+                      <li key={`distribution-${company.name}`} className="flex items-center justify-between gap-3">
+                        <span>{company.name}</span>
+                        <span className="text-xs text-slate-400">Distribution</span>
                       </li>
                     ))}
-                    {distributionCompanies.length === 0 && productionCompanies.length === 0 ? (
-                      <li className="font-body text-xs text-slate-500">No company data available.</li>
-                    ) : null}
+                    {productionCompanies.map((company) => (
+                      <li key={`production-${company.name}`} className="flex items-center justify-between gap-3">
+                        <span>{company.name}</span>
+                        <span className="text-xs text-slate-400">Production</span>
+                      </li>
+                    ))}
                   </ul>
-                </section>
+                )}
+              </Section>
 
-                <section>
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="font-label text-[11px] font-black uppercase tracking-widest text-slate-900">Credits</span>
-                    <div className="h-px flex-grow bg-slate-900" />
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Directors</span>
-                      <span className="block font-body text-xs font-medium text-slate-900">{directors.map((credit) => credit.name).join(', ') || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Writers</span>
-                      <span className="block font-body text-xs font-medium text-slate-900">{writers.map((credit) => credit.name).join(', ') || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Producers</span>
-                      <span className="block font-body text-xs font-medium text-slate-900">{producers.map((credit) => credit.name).join(', ') || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="mb-1 block font-label text-[10px] font-bold uppercase text-slate-400">Cast</span>
-                      <span className="block font-body text-xs font-medium text-slate-900">{cast.map((credit) => credit.name).join(', ') || 'Unknown'}</span>
-                    </div>
-                  </div>
-                </section>
-              </div>
+              <Section title="Credits">
+                <dl className="space-y-4">
+                  <MetaRow label="Directors" value={directors.map((credit) => credit.name).join(', ') || 'Unknown'} />
+                  <MetaRow label="Writers" value={writers.map((credit) => credit.name).join(', ') || 'Unknown'} />
+                  <MetaRow label="Producers" value={producers.map((credit) => credit.name).join(', ') || 'Unknown'} />
+                  <MetaRow label="Cast" value={cast.map((credit) => credit.name).join(', ') || 'Unknown'} />
+                </dl>
+              </Section>
             </>
           ) : (
-            <span className="font-label text-[10px] font-bold uppercase tracking-widest text-slate-400">No selection</span>
+            <p className="text-sm text-slate-500">No movie selected.</p>
           )}
         </div>
       </aside>

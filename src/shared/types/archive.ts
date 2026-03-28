@@ -12,6 +12,26 @@ export interface MovieCompanyCredit {
   roleType: MovieCompanyRole;
 }
 
+export interface PersonSuggestion {
+  id: string;
+  name: string;
+  roles: MoviePersonRole[];
+  movieCount: number;
+}
+
+export interface CompanySuggestion {
+  id: string;
+  name: string;
+  roles: MovieCompanyRole[];
+  movieCount: number;
+}
+
+export interface NumericRangeFilter {
+  knownOnly: boolean;
+  min?: number;
+  max?: number;
+}
+
 export interface ArchiveMovie {
   id: number;
   title: string;
