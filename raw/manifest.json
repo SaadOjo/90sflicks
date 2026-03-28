@@ -1,0 +1,52 @@
+{
+  "scope": "US films with release year 1990-1999 from Wikidata",
+  "movies": {
+    "total": 7473,
+    "with_imdb_id": 7226,
+    "without_imdb_id": 247
+  },
+  "wikidata_non_null_counts": {
+    "release_date": 7473,
+    "genre": 6578,
+    "producer": 3051,
+    "production_company": 2083,
+    "distributor": 3880,
+    "budget": 561,
+    "box_office": 515
+  },
+  "imdb_filtered_rows": {
+    "title.basics": 7198,
+    "title.crew": 7198,
+    "title.principals": 136554,
+    "title.ratings": 7128,
+    "name.basics": 51623
+  },
+  "imdb_title_types": {
+    "movie": 4550,
+    "short": 292,
+    "video": 577,
+    "tvMovie": 1614,
+    "tvMiniSeries": 76,
+    "tvEpisode": 61,
+    "tvSeries": 5,
+    "tvShort": 10,
+    "tvSpecial": 12,
+    "videoGame": 1
+  },
+  "imdb_principal_categories": {
+    "actor": 43915,
+    "actress": 22168,
+    "director": 7601,
+    "writer": 12607,
+    "producer": 11411,
+    "composer": 7306,
+    "cinematographer": 7001,
+    "editor": 8221,
+    "self": 2932,
+    "archive_footage": 568,
+    "casting_director": 7115,
+    "production_designer": 5703,
+    "archive_sound": 6
+  },
+  "imdb_people_total": 51623
+}

@@ -1,0 +1,13 @@
+- title
+- release year
+- release date
+- genre
+- film type
+- director(s)
+- writer(s)
+- main cast
+- producer(s)
+- production company / companies
+- distributor
+- budget
+- box office
