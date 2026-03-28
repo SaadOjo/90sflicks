@@ -1,23 +1,22 @@
-import type { ArchiveMovie } from '../../shared/types/archive';
+import type { ArchiveMovieListItem } from '../../shared/types/archive';
 import { formatCurrency, formatDisplayDate, formatFilmType } from '../lib/formatters';
-import { getCreditsByRole, getMainCast } from '../lib/movieSelectors';
 
 interface MovieCardProps {
-  movie: ArchiveMovie;
+  movie: ArchiveMovieListItem;
   selected: boolean;
-  onSelect: (movie: ArchiveMovie) => void;
+  onSelect: (movie: ArchiveMovieListItem) => void;
 }
 
 export function MovieCard({ movie, selected, onSelect }: MovieCardProps) {
-  const directors = getCreditsByRole(movie, 'director').map((credit) => credit.name).join(', ');
-  const mainCast = getMainCast(movie).map((credit) => credit.name).join(', ');
+  const directors = movie.directors.join(', ');
+  const mainCast = movie.mainCast.join(', ');
   const boxOffice = movie.boxOffice != null ? formatCurrency(movie.boxOffice) : null;
 
   return (
     <article
       className={selected
-        ? 'cursor-pointer rounded-xl border border-primary/20 bg-white p-5 shadow-sm ring-1 ring-primary/10 transition-colors'
-        : 'cursor-pointer rounded-xl border border-slate-200/80 bg-white p-5 transition-colors hover:border-slate-300 hover:bg-slate-50'}
+        ? 'neo-card neo-card-selected cursor-pointer rounded-xl border p-5 transition-colors'
+        : 'neo-card neo-card-hover cursor-pointer rounded-xl border p-5 transition-colors'}
       onClick={() => onSelect(movie)}
     >
       <div className="flex items-start justify-between gap-4">
@@ -33,7 +32,7 @@ export function MovieCard({ movie, selected, onSelect }: MovieCardProps) {
           </div>
         </div>
 
-        <span className={selected ? 'rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-white' : 'rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600'}>
+        <span className={selected ? 'neo-badge-selected rounded-full px-2.5 py-1 text-xs font-medium text-white' : 'neo-badge-muted rounded-full px-2.5 py-1 text-xs font-medium text-slate-600'}>
           {formatFilmType(movie.filmType)}
         </span>
       </div>

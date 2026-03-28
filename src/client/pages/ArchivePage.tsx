@@ -1,20 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { CompanySuggestion, NumericRangeFilter, PersonSuggestion } from '../../shared/types/archive';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ArchiveMovie, CompanySuggestion, NumericRangeFilter, PersonSuggestion } from '../../shared/types/archive';
+import type { ArchiveFacetsResponse, ArchiveMoviesResponse } from '../../shared/types/api';
 import { DetailsPanel } from '../components/DetailsPanel';
 import { FilterSidebar } from '../components/FilterSidebar';
 import { MovieCard } from '../components/MovieCard';
 import { Pagination } from '../components/Pagination';
 import { TopBar } from '../components/TopBar';
 import { useAutocompleteSuggestions } from '../hooks/useAutocompleteSuggestions';
-import {
-  buildGenreOptions,
-  buildTypeOptions,
-  buildYearOptions,
-  filterArchiveMovies,
-  normalize,
-  type SortOption,
-} from '../lib/archiveFilters';
-import { ARCHIVE_INDEXED_COUNT, archiveMovies } from '../lib/mockData';
+import type { SelectOption, SortOption, YearOption } from '../lib/archiveFilters';
+import { fetchArchiveFacets, fetchArchiveMovieById, fetchArchiveMovies, type ArchiveRequestFilters } from '../lib/archiveApi';
 import { formatCompactNumber } from '../lib/formatters';
 import { searchCompanies } from '../lib/companySearch';
 import { searchPeople } from '../lib/peopleSearch';
@@ -24,6 +18,21 @@ const DEFAULT_GENRES: string[] = [];
 const DEFAULT_FILM_TYPES: string[] = [];
 const EMPTY_RANGE_FILTER: NumericRangeFilter = { knownOnly: false };
 const FULL_DECADE_YEARS = Array.from({ length: 10 }, (_, index) => 1990 + index);
+
+const EMPTY_ARCHIVE_RESPONSE: ArchiveMoviesResponse = {
+  items: [],
+  totalItems: 0,
+  totalPages: 1,
+  page: 1,
+  pageSize: 25,
+};
+
+const EMPTY_FACETS_RESPONSE: ArchiveFacetsResponse = {
+  indexedCount: 0,
+  years: FULL_DECADE_YEARS.map((year) => ({ year, count: 0 })),
+  genres: [],
+  filmTypes: [],
+};
 
 const BUDGET_PRESETS = {
   'Under $10M': { max: 10_000_000 },
@@ -39,6 +48,23 @@ const BOX_OFFICE_PRESETS = {
 
 type BudgetPresetLabel = keyof typeof BUDGET_PRESETS;
 type BoxOfficePresetLabel = keyof typeof BOX_OFFICE_PRESETS;
+
+function mergeFullDecadeYears(years: ArchiveFacetsResponse['years']): YearOption[] {
+  const countByYear = new Map(years.map((item) => [item.year, item.count]));
+  return FULL_DECADE_YEARS.map((year) => ({ year, count: countByYear.get(year) ?? 0 }));
+}
+
+function mapGenreOptions(facets: ArchiveFacetsResponse): SelectOption[] {
+  return facets.genres.map((genre) => ({ value: genre.name, label: genre.name, count: genre.count }));
+}
+
+function mapTypeOptions(facets: ArchiveFacetsResponse): SelectOption[] {
+  return facets.filmTypes.map((filmType) => ({ value: filmType.value, label: filmType.label, count: filmType.count }));
+}
+
+function toggleValue<T>(values: T[], value: T): T[] {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
 
 export function ArchivePage() {
   const [selectedYears, setSelectedYears] = useState<number[]>(DEFAULT_YEARS);
@@ -57,14 +83,38 @@ export function ArchivePage() {
   const [selectedBoxOfficePreset, setSelectedBoxOfficePreset] = useState<BoxOfficePresetLabel | null>(null);
 
   const [sortValue, setSortValue] = useState<SortOption>('releaseDate');
-  const [selectedMovieId, setSelectedMovieId] = useState<number>(2);
+  const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const years = useMemo(() => buildYearOptions(archiveMovies, FULL_DECADE_YEARS), []);
-  const genreOptions = useMemo(() => buildGenreOptions(archiveMovies), []);
-  const typeOptions = useMemo(() => buildTypeOptions(archiveMovies), []);
+  const [archiveResponse, setArchiveResponse] = useState<ArchiveMoviesResponse>(EMPTY_ARCHIVE_RESPONSE);
+  const [facetsResponse, setFacetsResponse] = useState<ArchiveFacetsResponse>(EMPTY_FACETS_RESPONSE);
+  const [isArchiveLoading, setIsArchiveLoading] = useState(true);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+
+  const [selectedMovieDetails, setSelectedMovieDetails] = useState<ArchiveMovie | null>(null);
+  const [isDetailsLoading, setIsDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const movieDetailsCache = useRef(new Map<number, ArchiveMovie>());
+  const movieDetailsRequests = useRef(new Map<number, Promise<ArchiveMovie>>());
+
+  const requestFilters = useMemo<ArchiveRequestFilters>(
+    () => ({
+      selectedYears,
+      selectedGenres,
+      selectedFilmTypes,
+      selectedPersonIds: selectedPeople.map((person) => person.id),
+      selectedCompanyIds: selectedCompanies.map((company) => company.id),
+      budgetFilter,
+      boxOfficeFilter,
+    }),
+    [boxOfficeFilter, budgetFilter, selectedCompanies, selectedFilmTypes, selectedGenres, selectedPeople, selectedYears],
+  );
+
+  const years = useMemo<YearOption[]>(() => mergeFullDecadeYears(facetsResponse.years), [facetsResponse.years]);
+  const genreOptions = useMemo<SelectOption[]>(() => mapGenreOptions(facetsResponse), [facetsResponse]);
+  const typeOptions = useMemo<SelectOption[]>(() => mapTypeOptions(facetsResponse), [facetsResponse]);
 
   const { suggestions: peopleSuggestions, isLoading: isPeopleLoading } = useAutocompleteSuggestions({
     query: peopleQuery,
@@ -78,57 +128,137 @@ export function ArchivePage() {
     selectedItems: selectedCompanies,
   });
 
-  const selectedPeopleNames = useMemo(() => selectedPeople.map((person) => normalize(person.name)), [selectedPeople]);
-  const selectedCompanyNames = useMemo(() => selectedCompanies.map((company) => normalize(company.name)), [selectedCompanies]);
+  const loadMovieDetails = useCallback((movieId: number) => {
+    const cachedMovie = movieDetailsCache.current.get(movieId);
+    if (cachedMovie) {
+      return Promise.resolve(cachedMovie);
+    }
 
-  const filteredMovies = useMemo(
-    () =>
-      filterArchiveMovies(archiveMovies, {
-        selectedYears,
-        selectedGenres,
-        selectedFilmTypes,
-        selectedPeopleNames,
-        selectedCompanyNames,
-        budgetFilter,
-        boxOfficeFilter,
-        sortValue,
-      }),
-    [
-      boxOfficeFilter,
-      budgetFilter,
-      selectedCompanyNames,
-      selectedFilmTypes,
-      selectedGenres,
-      selectedPeopleNames,
-      selectedYears,
-      sortValue,
-    ],
-  );
+    const inflightRequest = movieDetailsRequests.current.get(movieId);
+    if (inflightRequest) {
+      return inflightRequest;
+    }
 
-  const totalPages = Math.max(1, Math.ceil(filteredMovies.length / pageSize));
+    const request = fetchArchiveMovieById(movieId)
+      .then((movie) => {
+        movieDetailsCache.current.set(movie.id, movie);
+        movieDetailsRequests.current.delete(movieId);
+        return movie;
+      })
+      .catch((error) => {
+        movieDetailsRequests.current.delete(movieId);
+        throw error;
+      });
+
+    movieDetailsRequests.current.set(movieId, request);
+    return request;
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, sortValue, pageSize]);
 
   useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
+    const abortController = new AbortController();
+
+    setIsArchiveLoading(true);
+    setArchiveError(null);
+
+    Promise.all([
+      fetchArchiveMovies(requestFilters, sortValue, currentPage, pageSize, { signal: abortController.signal }),
+      fetchArchiveFacets(requestFilters, { signal: abortController.signal }),
+    ])
+      .then(([movies, facets]) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        setArchiveResponse(movies);
+        setFacetsResponse(facets);
+        setIsArchiveLoading(false);
+
+        const firstMovieId = movies.items[0]?.id;
+        if (firstMovieId != null) {
+          void loadMovieDetails(firstMovieId).catch(() => undefined);
+        }
+      })
+      .catch((error) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        console.error(error);
+        setArchiveError('Failed to load archive data.');
+        setIsArchiveLoading(false);
+      });
+
+    return () => abortController.abort();
+  }, [currentPage, loadMovieDetails, pageSize, requestFilters, sortValue]);
+
+  useEffect(() => {
+    const availableMovieIds = new Set(archiveResponse.items.map((movie) => movie.id));
+
+    if (selectedMovieId != null && availableMovieIds.has(selectedMovieId)) {
+      return;
     }
-  }, [currentPage, totalPages]);
 
-  const paginatedMovies = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredMovies.slice(start, start + pageSize);
-  }, [currentPage, filteredMovies, pageSize]);
+    setSelectedMovieId(archiveResponse.items[0]?.id ?? null);
+  }, [archiveResponse.items, selectedMovieId]);
 
-  const selectedMovie = paginatedMovies.find((movie) => movie.id === selectedMovieId) ?? paginatedMovies[0] ?? null;
+  useEffect(() => {
+    let cancelled = false;
 
-  const toggleNumber = (values: number[], value: number) =>
-    values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+    if (selectedMovieId == null) {
+      setSelectedMovieDetails(null);
+      setDetailsError(null);
+      setIsDetailsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
-  const toggleString = (values: string[], value: string) =>
-    values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+    const cachedMovie = movieDetailsCache.current.get(selectedMovieId);
+    if (cachedMovie) {
+      setSelectedMovieDetails(cachedMovie);
+      setDetailsError(null);
+      setIsDetailsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setSelectedMovieDetails(null);
+    setDetailsError(null);
+    setIsDetailsLoading(true);
+
+    loadMovieDetails(selectedMovieId)
+      .then((movie) => {
+        if (cancelled) {
+          return;
+        }
+
+        setSelectedMovieDetails(movie);
+        setIsDetailsLoading(false);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(error);
+        setDetailsError('Failed to load movie details.');
+        setIsDetailsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadMovieDetails, selectedMovieId]);
+
+  const selectedMovieSummary = useMemo(
+    () => archiveResponse.items.find((movie) => movie.id === selectedMovieId) ?? archiveResponse.items[0] ?? null,
+    [archiveResponse.items, selectedMovieId],
+  );
 
   const clearAll = () => {
     setSelectedYears([]);
@@ -216,14 +346,14 @@ export function ArchivePage() {
         onBudgetPresetSelect={handleBudgetPresetSelect}
         onClearAll={clearAll}
         onCompanyQueryChange={setCompanyQuery}
-        onFilmTypeToggle={(value) => setSelectedFilmTypes((current) => toggleString(current, value))}
-        onGenreToggle={(value) => setSelectedGenres((current) => toggleString(current, value))}
+        onFilmTypeToggle={(value) => setSelectedFilmTypes((current) => toggleValue(current, value))}
+        onGenreToggle={(value) => setSelectedGenres((current) => toggleValue(current, value))}
         onPeopleQueryChange={setPeopleQuery}
         onRemoveCompany={handleRemoveCompany}
         onRemovePerson={handleRemovePerson}
         onSelectCompany={handleSelectCompany}
         onSelectPerson={handleSelectPerson}
-        onYearToggle={(value) => setSelectedYears((current) => toggleNumber(current, value))}
+        onYearToggle={(value) => setSelectedYears((current) => toggleValue(current, value))}
       />
 
       <main
@@ -233,11 +363,11 @@ export function ArchivePage() {
       >
         <div className={`mx-auto transition-[max-width] duration-200 ease-out ${isDetailsPanelOpen ? 'max-w-4xl' : 'max-w-6xl'}`}>
           <div className="mb-8">
-            <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="neo-toolbar flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-500">
-                <span className="font-medium text-slate-900">{formatCompactNumber(filteredMovies.length)}</span> results
+                <span className="font-medium text-slate-900">{formatCompactNumber(archiveResponse.totalItems)}</span> results
                 <span className="mx-2 text-slate-300">/</span>
-                <span>{formatCompactNumber(ARCHIVE_INDEXED_COUNT)} indexed</span>
+                <span>{formatCompactNumber(facetsResponse.indexedCount)} indexed</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -259,31 +389,45 @@ export function ArchivePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            {paginatedMovies.map((movie) => (
-              <MovieCard
-                key={movie.id}
-                movie={movie}
-                selected={selectedMovie?.id === movie.id}
-                onSelect={(nextMovie) => {
-                  setSelectedMovieId(nextMovie.id);
-                  setIsDetailsPanelOpen(true);
-                }}
-              />
-            ))}
-          </div>
+          {archiveError ? (
+            <div className="neo-panel rounded-xl border px-4 py-8 text-center text-sm text-slate-600">{archiveError}</div>
+          ) : archiveResponse.items.length === 0 && !isArchiveLoading ? (
+            <div className="neo-panel rounded-xl border px-4 py-8 text-center text-sm text-slate-600">No movies match the current filters.</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {archiveResponse.items.map((movie) => (
+                <MovieCard
+                  key={movie.id}
+                  movie={movie}
+                  selected={selectedMovieSummary?.id === movie.id}
+                  onSelect={(nextMovie) => {
+                    setSelectedMovieId(nextMovie.id);
+                    setIsDetailsPanelOpen(true);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 text-xs text-slate-400">{isArchiveLoading ? 'Loading archive…' : null}</div>
 
           <Pagination
             currentPage={currentPage}
             pageSize={pageSize}
-            totalItems={filteredMovies.length}
+            totalItems={archiveResponse.totalItems}
             onPageChange={setCurrentPage}
             onPageSizeChange={setPageSize}
           />
         </div>
       </main>
 
-      <DetailsPanel movie={selectedMovie} isOpen={isDetailsPanelOpen} onToggle={() => setIsDetailsPanelOpen((current) => !current)} />
+      <DetailsPanel
+        error={detailsError}
+        isLoading={isDetailsLoading}
+        isOpen={isDetailsPanelOpen}
+        movie={selectedMovieDetails}
+        onToggle={() => setIsDetailsPanelOpen((current) => !current)}
+      />
     </div>
   );
 }

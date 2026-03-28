@@ -6,6 +6,8 @@ import { getCompaniesByRole, getCreditsByRole, getMainCast } from '../lib/movieS
 interface DetailsPanelProps {
   movie: ArchiveMovie | null;
   isOpen: boolean;
+  isLoading?: boolean;
+  error?: string | null;
   onToggle: () => void;
 }
 
@@ -27,7 +29,7 @@ function MetaRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
+export function DetailsPanel({ movie, isOpen, isLoading = false, error = null, onToggle }: DetailsPanelProps) {
   const directors = movie ? getCreditsByRole(movie, 'director') : [];
   const writers = movie ? getCreditsByRole(movie, 'writer') : [];
   const producers = movie ? getCreditsByRole(movie, 'producer') : [];
@@ -40,7 +42,7 @@ export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
     <>
       <button
         aria-label={isOpen ? 'Hide details panel' : 'Show details panel'}
-        className={`fixed top-24 z-40 hidden h-16 w-5 items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-white text-slate-500 transition-[right,color] duration-200 hover:text-slate-900 lg:flex ${
+        className={`neo-toggle-tab fixed top-24 z-40 hidden h-16 w-5 items-center justify-center rounded-r-md border border-l-0 text-slate-500 transition-[right,color] duration-200 hover:text-slate-900 lg:flex ${
           isOpen ? 'right-[360px]' : 'right-0'
         }`}
         onClick={onToggle}
@@ -50,12 +52,16 @@ export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
       </button>
 
       <aside
-        className={`fixed right-0 top-16 bottom-0 hidden w-[380px] overflow-y-auto border-l border-slate-200/80 bg-white transition-transform duration-200 lg:block ${
+        className={`neo-panel fixed right-0 top-16 bottom-0 hidden w-[380px] overflow-y-auto border-l transition-transform duration-200 lg:block ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="space-y-8 py-6 pr-6 pl-10">
-          {movie ? (
+          {error ? (
+            <p className="text-sm text-slate-500">{error}</p>
+          ) : isLoading ? (
+            <p className="text-sm text-slate-500">Loading details…</p>
+          ) : movie ? (
             <>
               <div>
                 <h2 className="font-headline text-3xl font-semibold text-slate-900">{movie.title}</h2>

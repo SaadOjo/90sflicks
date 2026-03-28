@@ -1,19 +1,36 @@
-import type { ArchiveMovie, CompanySuggestion, MovieCompanyRole } from '../../shared/types/archive';
-import { archiveMovies } from './mockData';
-import { buildEntityIndex, searchEntityIndex } from './entitySearch';
+import type { CompanySuggestion } from '../../shared/types/archive';
+import type { CompanySearchIndexResponse } from '../../shared/types/api';
+import { searchEntityIndex } from './entitySearch';
 
-const ROLE_ORDER: MovieCompanyRole[] = ['production', 'distribution'];
+let companyIndexPromise: Promise<CompanySuggestion[]> | null = null;
 
-function buildCompanyIndex(movies: ArchiveMovie[]): CompanySuggestion[] {
-  return buildEntityIndex(
-    movies,
-    (movie) => movie.companies.map((company) => ({ name: company.name, roleType: company.roleType })),
-    ROLE_ORDER,
-  );
+async function loadCompanyIndex(): Promise<CompanySuggestion[]> {
+  if (companyIndexPromise) {
+    return companyIndexPromise;
+  }
+
+  companyIndexPromise = fetch('/api/search-index/companies', {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to load company index: ${response.status}`);
+      }
+
+      const payload = (await response.json()) as CompanySearchIndexResponse;
+      return payload.items;
+    })
+    .catch((error) => {
+      companyIndexPromise = null;
+      throw error;
+    });
+
+  return companyIndexPromise;
 }
 
-const COMPANY_INDEX = buildCompanyIndex(archiveMovies);
-
-export function searchCompanies(query: string, limit = 8): Promise<CompanySuggestion[]> {
-  return searchEntityIndex(COMPANY_INDEX, query, limit);
+export async function searchCompanies(query: string, limit = 8): Promise<CompanySuggestion[]> {
+  const index = await loadCompanyIndex();
+  return searchEntityIndex(index, query, limit);
 }

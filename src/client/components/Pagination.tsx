@@ -49,7 +49,7 @@ export function Pagination({ currentPage, pageSize, totalItems, onPageChange, on
           <label htmlFor="page-size">Rows per page</label>
           <select
             id="page-size"
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-primary"
+            className="neo-panel rounded-md border px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-primary"
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
           >
@@ -62,7 +62,7 @@ export function Pagination({ currentPage, pageSize, totalItems, onPageChange, on
 
       <div className="flex flex-wrap items-center justify-center gap-2">
         <button
-          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          className="neo-panel rounded-md border px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
           type="button"
@@ -80,8 +80,8 @@ export function Pagination({ currentPage, pageSize, totalItems, onPageChange, on
               key={page}
               className={
                 page === currentPage
-                  ? 'rounded-md bg-primary px-3 py-2 text-sm font-medium text-white'
-                  : 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100'
+                  ? 'neo-pagination-active rounded-md px-3 py-2 text-sm font-medium text-white'
+                  : 'neo-panel rounded-md border px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100'
               }
               onClick={() => onPageChange(page)}
               type="button"
@@ -92,7 +92,7 @@ export function Pagination({ currentPage, pageSize, totalItems, onPageChange, on
         )}
 
         <button
-          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          className="neo-panel rounded-md border px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={currentPage === totalPages || totalItems === 0}
           onClick={() => onPageChange(currentPage + 1)}
           type="button"

@@ -32,6 +32,18 @@ export interface NumericRangeFilter {
   max?: number;
 }
 
+export interface ArchiveMovieListItem {
+  id: number;
+  title: string;
+  releaseYear: number;
+  releaseDate?: string;
+  filmType?: string;
+  boxOffice?: number;
+  genres: string[];
+  directors: string[];
+  mainCast: string[];
+}
+
 export interface ArchiveMovie {
   id: number;
   title: string;

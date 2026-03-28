@@ -44,3 +44,10 @@
 - sharded static people search index
 - frontend fuzzy search over loaded data
 - Cloudflare caching for search index files
+
+## Backend follow-ups
+- replace live D1-backed search-index endpoints with prebuilt static JSON assets
+- keep archive list responses summary-only; fetch full credits/companies on the single-movie detail endpoint
+- add movie indexes for common sort fields: `release_date`, `budget`, `box_office`
+- add auth in front of the internal app/API before real multi-user deployment
+- consider short cache lifetimes for archive/facet responses only if real usage shows repeated query patterns

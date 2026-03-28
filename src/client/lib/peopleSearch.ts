@@ -1,19 +1,52 @@
-import type { ArchiveMovie, MoviePersonRole, PersonSuggestion } from '../../shared/types/archive';
-import { archiveMovies } from './mockData';
-import { buildEntityIndex, searchEntityIndex } from './entitySearch';
+import type { PersonSuggestion } from '../../shared/types/archive';
+import type { PeopleSearchIndexResponse } from '../../shared/types/api';
+import { searchEntityIndex } from './entitySearch';
 
-const ROLE_ORDER: MoviePersonRole[] = ['director', 'writer', 'producer', 'cast'];
+const PEOPLE_SHARD_CACHE = new Map<string, Promise<PersonSuggestion[]>>();
 
-function buildPeopleIndex(movies: ArchiveMovie[]): PersonSuggestion[] {
-  return buildEntityIndex(
-    movies,
-    (movie) => movie.credits.map((credit) => ({ name: credit.name, roleType: credit.roleType })),
-    ROLE_ORDER,
-  );
+function normalize(value: string): string {
+  return value.trim().toLowerCase();
 }
 
-const PEOPLE_INDEX = buildPeopleIndex(archiveMovies);
+async function loadPeopleShard(prefix: string): Promise<PersonSuggestion[]> {
+  const normalizedPrefix = normalize(prefix).slice(0, 2);
+  if (normalizedPrefix.length < 2) {
+    return [];
+  }
 
-export function searchPeople(query: string, limit = 8): Promise<PersonSuggestion[]> {
-  return searchEntityIndex(PEOPLE_INDEX, query, limit);
+  const cached = PEOPLE_SHARD_CACHE.get(normalizedPrefix);
+  if (cached) {
+    return cached;
+  }
+
+  const request = fetch(`/api/search-index/people?prefix=${encodeURIComponent(normalizedPrefix)}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to load people shard: ${response.status}`);
+      }
+
+      const payload = (await response.json()) as PeopleSearchIndexResponse;
+      return payload.items;
+    })
+    .catch((error) => {
+      PEOPLE_SHARD_CACHE.delete(normalizedPrefix);
+      throw error;
+    });
+
+  PEOPLE_SHARD_CACHE.set(normalizedPrefix, request);
+  return request;
+}
+
+export async function searchPeople(query: string, limit = 8): Promise<PersonSuggestion[]> {
+  const normalizedQuery = normalize(query);
+  if (normalizedQuery.length < 2) {
+    return [];
+  }
+
+  const shard = await loadPeopleShard(normalizedQuery.slice(0, 2));
+  return searchEntityIndex(shard, normalizedQuery, limit);
 }

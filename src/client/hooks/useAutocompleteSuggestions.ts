@@ -32,11 +32,18 @@ export function useAutocompleteSuggestions<TItem extends { id: string }>({
     setIsLoading(true);
 
     const timeoutId = window.setTimeout(async () => {
-      const results = await search(trimmedQuery, limit);
-      if (!cancelled) {
-        const selectedIds = new Set(selectedItems.map((item) => item.id));
-        setSuggestions(results.filter((item) => !selectedIds.has(item.id)));
-        setIsLoading(false);
+      try {
+        const results = await search(trimmedQuery, limit);
+        if (!cancelled) {
+          const selectedIds = new Set(selectedItems.map((item) => item.id));
+          setSuggestions(results.filter((item) => !selectedIds.has(item.id)));
+          setIsLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setSuggestions([]);
+          setIsLoading(false);
+        }
       }
     }, delayMs);
 

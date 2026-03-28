@@ -1,5 +1,6 @@
 import type { CompanySuggestion, MovieCompanyRole, MoviePersonRole, NumericRangeFilter, PersonSuggestion } from '../../shared/types/archive';
 import type { SelectOption, YearOption } from '../lib/archiveFilters';
+import { formatFilmType } from '../lib/formatters';
 import { AutocompleteFilterSection } from './filters/AutocompleteFilterSection';
 import { FinancialFilterSection } from './filters/FinancialFilterSection';
 import { SelectFilterSection } from './filters/SelectFilterSection';
@@ -113,7 +114,7 @@ export function FilterSidebar({
   onClearAll,
 }: FilterSidebarProps) {
   return (
-    <aside className="fixed left-0 top-16 bottom-0 flex w-80 flex-col overflow-y-auto border-r border-slate-200/80 bg-slate-50 px-5 py-5">
+    <aside className="neo-sidebar fixed left-0 top-16 bottom-0 flex w-80 flex-col overflow-y-auto border-r px-5 py-5">
       <div className="mb-2 flex justify-end">
         <span className="material-symbols-outlined text-base text-slate-400">tune</span>
       </div>
@@ -131,6 +132,7 @@ export function FilterSidebar({
 
         <SelectFilterSection
           emptyLabel="All types"
+          getLabel={formatFilmType}
           options={typeOptions}
           selectedValues={selectedFilmTypes}
           title="Type"
