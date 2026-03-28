@@ -113,7 +113,7 @@ export function FilterSidebar({
   onClearAll,
 }: FilterSidebarProps) {
   return (
-    <aside className="fixed left-0 top-16 bottom-0 flex w-72 flex-col overflow-y-auto border-r border-slate-200/80 bg-slate-50 px-5 py-5">
+    <aside className="fixed left-0 top-16 bottom-0 flex w-80 flex-col overflow-y-auto border-r border-slate-200/80 bg-slate-50 px-5 py-5">
       <div className="mb-2 flex justify-end">
         <span className="material-symbols-outlined text-base text-slate-400">tune</span>
       </div>
@@ -179,7 +179,7 @@ export function FilterSidebar({
 
       <div className="mt-auto pt-6">
         <button
-          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100"
+          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100"
           onClick={onClearAll}
           type="button"
         >

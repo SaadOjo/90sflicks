@@ -29,7 +29,7 @@ export function SelectFilterSection({ title, emptyLabel, options, selectedValues
         <SelectionSummary emptyLabel={emptyLabel} selectedValues={selectedValues} />
 
         {isOpen ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border border-slate-200 bg-white p-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {options.map((option) => {
               const checked = selectedValueSet.has(option.name);
               return (
@@ -40,9 +40,12 @@ export function SelectFilterSection({ title, emptyLabel, options, selectedValues
                     type="checkbox"
                     onChange={() => onToggle(option.name)}
                   />
-                  <span className={checked ? 'font-medium text-slate-900' : ''}>
-                    {option.name} <span className="text-slate-400">({option.count})</span>
-                  </span>
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                    <span className={`min-w-0 truncate ${checked ? 'font-medium text-slate-900' : ''}`} title={option.name}>
+                      {option.name}
+                    </span>
+                    <span className="shrink-0 text-slate-400">({option.count})</span>
+                  </div>
                 </label>
               );
             })}

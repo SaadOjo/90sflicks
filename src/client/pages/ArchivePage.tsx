@@ -227,7 +227,7 @@ export function ArchivePage() {
       />
 
       <main
-        className={`mt-16 min-h-screen px-6 py-6 transition-[margin] duration-200 ease-out lg:ml-72 ${
+        className={`mt-16 min-h-screen px-6 py-6 transition-[margin] duration-200 ease-out lg:ml-80 ${
           isDetailsPanelOpen ? 'lg:mr-[380px]' : 'lg:mr-0'
         }`}
       >
