@@ -10,4 +10,4 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "movie-filter"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "da5cbb25-40a1-44cd-b39a-4b6ca75d5097"

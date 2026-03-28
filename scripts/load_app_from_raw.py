@@ -506,8 +506,7 @@ def write_d1_load_sql(rows_by_table, path: Path):
     schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8").strip()
     with path.open("w", encoding="utf-8") as f:
         f.write(schema_sql)
-        f.write("\n\nBEGIN TRANSACTION;\n")
-        f.write("PRAGMA foreign_keys = OFF;\n")
+        f.write("\n\nPRAGMA foreign_keys = OFF;\n")
         for table, _ in reversed(D1_TABLES):
             f.write(f"DELETE FROM {table};\n")
         for table, columns in D1_TABLES:
@@ -519,7 +518,6 @@ def write_d1_load_sql(rows_by_table, path: Path):
                 f.write(",\n".join(row_to_sql(columns, row) for row in chunk))
                 f.write(";\n")
         f.write("PRAGMA foreign_keys = ON;\n")
-        f.write("COMMIT;\n")
 
 
 def load_to_d1(rows_by_table, sql_path: Path, binding: str, remote: bool):
