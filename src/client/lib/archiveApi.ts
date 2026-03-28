@@ -12,6 +12,8 @@ export interface ArchiveRequestFilters {
   selectedCompanyIds: string[];
   budgetFilter: NumericRangeFilter;
   boxOfficeFilter: NumericRangeFilter;
+  imdbRatingFilter: NumericRangeFilter;
+  imdbVoteCountFilter: NumericRangeFilter;
 }
 
 interface RequestOptions {
@@ -24,7 +26,7 @@ function appendCsv(params: URLSearchParams, key: string, values: Array<string | 
   }
 }
 
-function appendRangeParams(params: URLSearchParams, prefix: 'budget' | 'boxOffice', filter: NumericRangeFilter) {
+function appendRangeParams(params: URLSearchParams, prefix: 'budget' | 'boxOffice' | 'imdbRating' | 'imdbVoteCount', filter: NumericRangeFilter) {
   if (filter.knownOnly) {
     params.set(`${prefix}KnownOnly`, 'true');
   }
@@ -48,6 +50,8 @@ function buildFilterSearchParams(filters: ArchiveRequestFilters): URLSearchParam
   appendCsv(params, 'companyIds', filters.selectedCompanyIds);
   appendRangeParams(params, 'budget', filters.budgetFilter);
   appendRangeParams(params, 'boxOffice', filters.boxOfficeFilter);
+  appendRangeParams(params, 'imdbRating', filters.imdbRatingFilter);
+  appendRangeParams(params, 'imdbVoteCount', filters.imdbVoteCountFilter);
 
   return params;
 }

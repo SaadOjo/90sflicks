@@ -3,7 +3,7 @@
 import type { ArchiveMovie, ArchiveMovieListItem, MovieCompanyCredit, MovieCredit, NumericRangeFilter } from '../../shared/types/archive';
 import type { ArchiveFacetsResponse, ArchiveFilmTypeFacet, ArchiveMoviesResponse } from '../../shared/types/api';
 
-export type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget';
+export type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget' | 'imdbRating';
 
 export interface ArchiveQueryFilters {
   years: number[];
@@ -13,6 +13,8 @@ export interface ArchiveQueryFilters {
   companyIds: number[];
   budgetFilter: NumericRangeFilter;
   boxOfficeFilter: NumericRangeFilter;
+  imdbRatingFilter: NumericRangeFilter;
+  imdbVoteCountFilter: NumericRangeFilter;
   sort: SortOption;
   page: number;
   pageSize: number;
@@ -25,6 +27,8 @@ interface MovieSummaryRow {
   release_date: string | null;
   film_type: string | null;
   box_office: number | null;
+  imdb_rating: number | null;
+  imdb_vote_count: number | null;
 }
 
 interface MovieDetailRow extends MovieSummaryRow {
@@ -195,6 +199,8 @@ function buildMovieWhereClause(
 
   appendNumericRangeFilter('m', 'budget', filters.budgetFilter, clauses, params);
   appendNumericRangeFilter('m', 'box_office', filters.boxOfficeFilter, clauses, params);
+  appendNumericRangeFilter('m', 'imdb_rating', filters.imdbRatingFilter, clauses, params);
+  appendNumericRangeFilter('m', 'imdb_vote_count', filters.imdbVoteCountFilter, clauses, params);
 
   return {
     sql: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '',
@@ -210,6 +216,8 @@ function sortClause(sort: SortOption): string {
       return 'ORDER BY m.box_office IS NULL ASC, m.box_office DESC, m.title ASC';
     case 'budget':
       return 'ORDER BY m.budget IS NULL ASC, m.budget DESC, m.title ASC';
+    case 'imdbRating':
+      return 'ORDER BY m.imdb_rating IS NULL ASC, m.imdb_rating DESC, m.imdb_vote_count IS NULL ASC, m.imdb_vote_count DESC, m.title ASC';
     case 'releaseDate':
     default:
       return 'ORDER BY m.release_date IS NULL ASC, m.release_date DESC, m.title ASC';
@@ -224,6 +232,8 @@ function toArchiveMovieListItem(row: MovieSummaryRow): ArchiveMovieListItem {
     ...(row.release_date ? { releaseDate: row.release_date } : {}),
     ...(row.film_type ? { filmType: row.film_type } : {}),
     ...(row.box_office != null ? { boxOffice: row.box_office } : {}),
+    ...(row.imdb_rating != null ? { imdbRating: row.imdb_rating } : {}),
+    ...(row.imdb_vote_count != null ? { imdbVoteCount: row.imdb_vote_count } : {}),
     genres: [],
     directors: [],
     mainCast: [],
@@ -239,6 +249,8 @@ function toArchiveMovie(row: MovieDetailRow): ArchiveMovie {
     ...(row.film_type ? { filmType: row.film_type } : {}),
     ...(row.budget != null ? { budget: row.budget } : {}),
     ...(row.box_office != null ? { boxOffice: row.box_office } : {}),
+    ...(row.imdb_rating != null ? { imdbRating: row.imdb_rating } : {}),
+    ...(row.imdb_vote_count != null ? { imdbVoteCount: row.imdb_vote_count } : {}),
     genres: [],
     credits: [],
     companies: [],
@@ -255,7 +267,7 @@ async function hydrateMovieSummaries(db: D1Database, movieIds: number[]): Promis
   const [movieRowsResult, genreRowsResult, creditRowsResult] = await Promise.all([
     sqlAll<MovieSummaryRow>(
       db,
-      `SELECT id, title, release_year, release_date, film_type, box_office FROM movie WHERE id IN (${placeholders})`,
+      `SELECT id, title, release_year, release_date, film_type, box_office, imdb_rating, imdb_vote_count FROM movie WHERE id IN (${placeholders})`,
       movieIds,
     ),
     sqlAll<GenreRow>(
@@ -326,7 +338,7 @@ async function hydrateMovieDetails(db: D1Database, movieIds: number[]): Promise<
   const [movieRowsResult, genreRowsResult, creditRowsResult, companyRowsResult] = await Promise.all([
     sqlAll<MovieDetailRow>(
       db,
-      `SELECT id, title, release_year, release_date, film_type, budget, box_office FROM movie WHERE id IN (${placeholders})`,
+      `SELECT id, title, release_year, release_date, film_type, budget, box_office, imdb_rating, imdb_vote_count FROM movie WHERE id IN (${placeholders})`,
       movieIds,
     ),
     sqlAll<GenreRow>(
@@ -421,17 +433,17 @@ export function parseArchiveFilters(url: URL): ArchiveQueryFilters {
       .map((value) => value.trim())
       .filter(Boolean);
 
-  const parseIntParam = (key: string) => {
+  const parseNumberParam = (key: string) => {
     const value = url.searchParams.get(key);
     if (!value) return undefined;
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
+    return Number.isFinite(parsed) ? parsed : undefined;
   };
 
   const parseBooleanParam = (key: string) => url.searchParams.get(key) === 'true';
 
   const sortValue = (url.searchParams.get('sort') ?? 'releaseDate') as SortOption;
-  const allowedSortValues: SortOption[] = ['releaseDate', 'title', 'boxOffice', 'budget'];
+  const allowedSortValues: SortOption[] = ['releaseDate', 'title', 'boxOffice', 'budget', 'imdbRating'];
   const sort = allowedSortValues.includes(sortValue) ? sortValue : 'releaseDate';
 
   const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
@@ -445,13 +457,23 @@ export function parseArchiveFilters(url: URL): ArchiveQueryFilters {
     companyIds: parseCsvNumbers('companyIds'),
     budgetFilter: {
       knownOnly: parseBooleanParam('budgetKnownOnly'),
-      min: parseIntParam('budgetMin'),
-      max: parseIntParam('budgetMax'),
+      min: parseNumberParam('budgetMin'),
+      max: parseNumberParam('budgetMax'),
     },
     boxOfficeFilter: {
       knownOnly: parseBooleanParam('boxOfficeKnownOnly'),
-      min: parseIntParam('boxOfficeMin'),
-      max: parseIntParam('boxOfficeMax'),
+      min: parseNumberParam('boxOfficeMin'),
+      max: parseNumberParam('boxOfficeMax'),
+    },
+    imdbRatingFilter: {
+      knownOnly: parseBooleanParam('imdbRatingKnownOnly'),
+      min: parseNumberParam('imdbRatingMin'),
+      max: parseNumberParam('imdbRatingMax'),
+    },
+    imdbVoteCountFilter: {
+      knownOnly: parseBooleanParam('imdbVoteCountKnownOnly'),
+      min: parseNumberParam('imdbVoteCountMin'),
+      max: parseNumberParam('imdbVoteCountMax'),
     },
     sort,
     page,

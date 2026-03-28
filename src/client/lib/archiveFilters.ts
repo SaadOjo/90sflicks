@@ -9,4 +9,4 @@ export interface SelectOption {
   count: number;
 }
 
-export type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget';
+export type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget' | 'imdbRating';

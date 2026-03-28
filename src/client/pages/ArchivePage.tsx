@@ -48,8 +48,22 @@ const BOX_OFFICE_PRESETS = {
   '$200M+': { min: 200_000_000 },
 } as const;
 
+const IMDB_RATING_PRESETS = {
+  '5.0+': { min: 5 },
+  '7.0+': { min: 7 },
+  '8.0+': { min: 8 },
+} as const;
+
+const IMDB_VOTE_PRESETS = {
+  '1K+': { min: 1_000 },
+  '10K+': { min: 10_000 },
+  '100K+': { min: 100_000 },
+} as const;
+
 type BudgetPresetLabel = keyof typeof BUDGET_PRESETS;
 type BoxOfficePresetLabel = keyof typeof BOX_OFFICE_PRESETS;
+type ImdbRatingPresetLabel = keyof typeof IMDB_RATING_PRESETS;
+type ImdbVotePresetLabel = keyof typeof IMDB_VOTE_PRESETS;
 
 function mergeFullDecadeYears(years: ArchiveFacetsResponse['years']): YearOption[] {
   const countByYear = new Map(years.map((item) => [item.year, item.count]));
@@ -81,6 +95,8 @@ function countActiveFilters(filters: ArchiveRequestFilters): number {
   if (filters.selectedCompanyIds.length > 0) count += 1;
   if (isRangeFilterActive(filters.budgetFilter)) count += 1;
   if (isRangeFilterActive(filters.boxOfficeFilter)) count += 1;
+  if (isRangeFilterActive(filters.imdbRatingFilter)) count += 1;
+  if (isRangeFilterActive(filters.imdbVoteCountFilter)) count += 1;
   return count;
 }
 
@@ -101,8 +117,12 @@ export function ArchivePage() {
 
   const [budgetFilter, setBudgetFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
   const [boxOfficeFilter, setBoxOfficeFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
+  const [imdbRatingFilter, setImdbRatingFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
+  const [imdbVoteCountFilter, setImdbVoteCountFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
   const [selectedBudgetPreset, setSelectedBudgetPreset] = useState<BudgetPresetLabel | null>(null);
   const [selectedBoxOfficePreset, setSelectedBoxOfficePreset] = useState<BoxOfficePresetLabel | null>(null);
+  const [selectedRatingPreset, setSelectedRatingPreset] = useState<ImdbRatingPresetLabel | null>(null);
+  const [selectedVotePreset, setSelectedVotePreset] = useState<ImdbVotePresetLabel | null>(null);
 
   const [sortValue, setSortValue] = useState<SortOption>('releaseDate');
   const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
@@ -132,8 +152,10 @@ export function ArchivePage() {
       selectedCompanyIds: selectedCompanies.map((company) => company.id),
       budgetFilter,
       boxOfficeFilter,
+      imdbRatingFilter,
+      imdbVoteCountFilter,
     }),
-    [boxOfficeFilter, budgetFilter, selectedCompanies, selectedFilmTypes, selectedGenres, selectedPeople, selectedYears],
+    [boxOfficeFilter, budgetFilter, imdbRatingFilter, imdbVoteCountFilter, selectedCompanies, selectedFilmTypes, selectedGenres, selectedPeople, selectedYears],
   );
 
   const activeFilterCount = useMemo(() => countActiveFilters(requestFilters), [requestFilters]);
@@ -182,7 +204,7 @@ export function ArchivePage() {
   useEffect(() => {
     setCurrentPage(1);
     setIsMobileDetailsOpen(false);
-  }, [selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, sortValue, pageSize]);
+  }, [selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, imdbRatingFilter, imdbVoteCountFilter, sortValue, pageSize]);
 
   useEffect(() => {
     if (!isMobileFiltersOpen && !isMobileDetailsOpen) {
@@ -313,8 +335,12 @@ export function ArchivePage() {
     setSelectedCompanies([]);
     setBudgetFilter(EMPTY_RANGE_FILTER);
     setBoxOfficeFilter(EMPTY_RANGE_FILTER);
+    setImdbRatingFilter(EMPTY_RANGE_FILTER);
+    setImdbVoteCountFilter(EMPTY_RANGE_FILTER);
     setSelectedBudgetPreset(null);
     setSelectedBoxOfficePreset(null);
+    setSelectedRatingPreset(null);
+    setSelectedVotePreset(null);
     setSortValue('releaseDate');
   };
 
@@ -360,6 +386,30 @@ export function ArchivePage() {
     setBoxOfficeFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
   };
 
+  const handleRatingPresetSelect = (presetLabel: string | null) => {
+    if (!presetLabel) {
+      setSelectedRatingPreset(null);
+      setImdbRatingFilter((current) => ({ knownOnly: current.knownOnly }));
+      return;
+    }
+
+    const preset = IMDB_RATING_PRESETS[presetLabel as ImdbRatingPresetLabel];
+    setSelectedRatingPreset(presetLabel as ImdbRatingPresetLabel);
+    setImdbRatingFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
+  };
+
+  const handleVotePresetSelect = (presetLabel: string | null) => {
+    if (!presetLabel) {
+      setSelectedVotePreset(null);
+      setImdbVoteCountFilter((current) => ({ knownOnly: current.knownOnly }));
+      return;
+    }
+
+    const preset = IMDB_VOTE_PRESETS[presetLabel as ImdbVotePresetLabel];
+    setSelectedVotePreset(presetLabel as ImdbVotePresetLabel);
+    setImdbVoteCountFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
+  };
+
   return (
     <div className="min-h-screen bg-surface text-on-surface selection:bg-tertiary-container selection:text-on-tertiary-container">
       <TopBar />
@@ -370,6 +420,8 @@ export function ArchivePage() {
         companyQuery={companyQuery}
         companySuggestions={companySuggestions}
         genreOptions={genreOptions}
+        imdbRatingFilter={imdbRatingFilter}
+        imdbVoteCountFilter={imdbVoteCountFilter}
         isCompanyLoading={isCompanyLoading}
         isPeopleLoading={isPeopleLoading}
         peopleQuery={peopleQuery}
@@ -377,6 +429,8 @@ export function ArchivePage() {
         selectedBoxOfficePreset={selectedBoxOfficePreset}
         selectedBudgetPreset={selectedBudgetPreset}
         selectedCompanies={selectedCompanies}
+        selectedRatingPreset={selectedRatingPreset}
+        selectedVotePreset={selectedVotePreset}
         selectedFilmTypes={selectedFilmTypes}
         selectedGenres={selectedGenres}
         selectedPeople={selectedPeople}
@@ -389,6 +443,10 @@ export function ArchivePage() {
         onBudgetPresetSelect={handleBudgetPresetSelect}
         onClearAll={clearAll}
         onCompanyQueryChange={setCompanyQuery}
+        onImdbRatingFilterChange={setImdbRatingFilter}
+        onImdbVoteCountFilterChange={setImdbVoteCountFilter}
+        onRatingPresetSelect={handleRatingPresetSelect}
+        onVotePresetSelect={handleVotePresetSelect}
         onFilmTypeToggle={(value) => setSelectedFilmTypes((current) => toggleValue(current, value))}
         onGenreToggle={(value) => setSelectedGenres((current) => toggleValue(current, value))}
         onPeopleQueryChange={setPeopleQuery}
@@ -405,6 +463,8 @@ export function ArchivePage() {
         companyQuery={companyQuery}
         companySuggestions={companySuggestions}
         genreOptions={genreOptions}
+        imdbRatingFilter={imdbRatingFilter}
+        imdbVoteCountFilter={imdbVoteCountFilter}
         isCompanyLoading={isCompanyLoading}
         isOpen={isMobileFiltersOpen}
         isPeopleLoading={isPeopleLoading}
@@ -413,6 +473,8 @@ export function ArchivePage() {
         selectedBoxOfficePreset={selectedBoxOfficePreset}
         selectedBudgetPreset={selectedBudgetPreset}
         selectedCompanies={selectedCompanies}
+        selectedRatingPreset={selectedRatingPreset}
+        selectedVotePreset={selectedVotePreset}
         selectedFilmTypes={selectedFilmTypes}
         selectedGenres={selectedGenres}
         selectedPeople={selectedPeople}
@@ -426,6 +488,10 @@ export function ArchivePage() {
         onClearAll={clearAll}
         onClose={() => setIsMobileFiltersOpen(false)}
         onCompanyQueryChange={setCompanyQuery}
+        onImdbRatingFilterChange={setImdbRatingFilter}
+        onImdbVoteCountFilterChange={setImdbVoteCountFilter}
+        onRatingPresetSelect={handleRatingPresetSelect}
+        onVotePresetSelect={handleVotePresetSelect}
         onFilmTypeToggle={(value) => setSelectedFilmTypes((current) => toggleValue(current, value))}
         onGenreToggle={(value) => setSelectedGenres((current) => toggleValue(current, value))}
         onPeopleQueryChange={setPeopleQuery}
@@ -482,6 +548,7 @@ export function ArchivePage() {
                   <option value="title">Title</option>
                   <option value="boxOffice">Box office</option>
                   <option value="budget">Budget</option>
+                  <option value="imdbRating">IMDb rating</option>
                 </select>
               </div>
             </div>

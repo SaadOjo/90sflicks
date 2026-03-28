@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS movie (
   film_type TEXT,
   budget INTEGER,
   box_office INTEGER,
+  imdb_rating REAL,
+  imdb_vote_count INTEGER,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -60,6 +62,7 @@ CREATE TABLE IF NOT EXISTS movie_company (
 
 CREATE INDEX IF NOT EXISTS movie_release_year_idx ON movie(release_year);
 CREATE INDEX IF NOT EXISTS movie_film_type_idx ON movie(film_type);
+CREATE INDEX IF NOT EXISTS movie_imdb_rating_idx ON movie(imdb_rating);
 CREATE INDEX IF NOT EXISTS person_name_idx ON person(name);
 CREATE INDEX IF NOT EXISTS company_name_idx ON company(name);
 CREATE INDEX IF NOT EXISTS movie_genre_genre_id_idx ON movie_genre(genre_id);

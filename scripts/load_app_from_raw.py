@@ -13,7 +13,7 @@ CAST_CATEGORIES = {"actor", "actress", "self"}
 SCHEMA_SQL_PATH = Path("drizzle/0000_initial.sql")
 D1_SQL_PATH = BUILD_DIR / "load_d1.sql"
 D1_TABLES = [
-    ("movie", ["id", "title", "release_year", "release_date", "film_type", "budget", "box_office", "created_at", "updated_at"]),
+    ("movie", ["id", "title", "release_year", "release_date", "film_type", "budget", "box_office", "imdb_rating", "imdb_vote_count", "created_at", "updated_at"]),
     ("genre", ["id", "name"]),
     ("person", ["id", "name", "created_at", "updated_at"]),
     ("company", ["id", "name", "created_at", "updated_at"]),
@@ -99,6 +99,16 @@ def parse_int(value):
         return None
 
 
+def parse_float(value):
+    value = nullify(value)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
 def parse_date(value):
     value = nullify(value)
     if value is None:
@@ -161,6 +171,13 @@ def load_imdb_basics():
 def load_imdb_crew():
     out = {}
     for row in read_tsv(RAW_DIR / "imdb" / "title.crew.us_90s.tsv"):
+        out[row["tconst"]] = row
+    return out
+
+
+def load_imdb_ratings():
+    out = {}
+    for row in read_tsv(RAW_DIR / "imdb" / "title.ratings.us_90s.tsv"):
         out[row["tconst"]] = row
     return out
 
@@ -241,6 +258,7 @@ def build_app_rows():
     wikidata_movies, wikidata_by_imdb = load_wikidata_movies()
     imdb_basics = load_imdb_basics()
     imdb_crew = load_imdb_crew()
+    imdb_ratings = load_imdb_ratings()
     imdb_names = load_imdb_names()
     imdb_cast = load_imdb_cast()
 
@@ -313,6 +331,9 @@ def build_app_rows():
             film_type = nullify(basics.get("titleType")) if basics else None
             budget = parse_int(first_non_null(wd_movies, "budget"))
             box_office = parse_int(first_non_null(wd_movies, "box_office"))
+            rating_row = imdb_ratings.get(imdb_id, {})
+            imdb_rating = parse_float(rating_row.get("averageRating"))
+            imdb_vote_count = parse_int(rating_row.get("numVotes"))
             genre_names = split_csv(basics.get("genres")) if basics and nullify(basics.get("genres")) else []
             if not genre_names:
                 genre_names = unique_preserve_order(
@@ -350,6 +371,8 @@ def build_app_rows():
             film_type = None
             budget = parse_int(wd.get("budget"))
             box_office = parse_int(wd.get("box_office"))
+            imdb_rating = None
+            imdb_vote_count = None
             genre_names = normalize_genres(unique_preserve_order(wd.get("genres", [])))
             producers = unique_preserve_order(wd.get("producers", []))
             production_companies = unique_preserve_order(wd.get("production_companies", []))
@@ -372,6 +395,8 @@ def build_app_rows():
             "film_type": film_type,
             "budget": budget,
             "box_office": box_office,
+            "imdb_rating": imdb_rating,
+            "imdb_vote_count": imdb_vote_count,
             "created_at": now,
             "updated_at": now,
         })
@@ -463,7 +488,7 @@ def write_csv(path: Path, rows, fieldnames):
 
 def write_output(rows_by_table, output_dir: Path):
     fieldnames = {
-        "movie": ["id", "title", "release_year", "release_date", "film_type", "budget", "box_office", "created_at", "updated_at"],
+        "movie": ["id", "title", "release_year", "release_date", "film_type", "budget", "box_office", "imdb_rating", "imdb_vote_count", "created_at", "updated_at"],
         "genre": ["id", "name"],
         "movie_genre": ["movie_id", "genre_id"],
         "person": ["id", "name", "created_at", "updated_at"],

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ArchiveMovie } from '../../shared/types/archive';
-import { formatCurrency, formatDisplayDate, formatFilmType } from '../lib/formatters';
+import { formatCompactNumber, formatCurrency, formatDisplayDate, formatFilmType, formatImdbRating } from '../lib/formatters';
 import { getCompaniesByRole, getCreditsByRole, getMainCast } from '../lib/movieSelectors';
 
 interface DetailsPanelContentProps {
@@ -35,6 +35,7 @@ export function DetailsPanelContent({ movie, isLoading = false, error = null }: 
   const productionCompanies = movie ? getCompaniesByRole(movie, 'production') : [];
   const distributionCompanies = movie ? getCompaniesByRole(movie, 'distribution') : [];
   const hasFinancials = movie && (movie.budget != null || movie.boxOffice != null);
+  const hasRatings = movie && (movie.imdbRating != null || movie.imdbVoteCount != null);
 
   if (error) {
     return <p className="text-sm text-slate-500">{error}</p>;
@@ -72,6 +73,15 @@ export function DetailsPanelContent({ movie, isLoading = false, error = null }: 
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {movie.budget != null ? <MetaRow label="Budget" value={formatCurrency(movie.budget)} /> : null}
             {movie.boxOffice != null ? <MetaRow label="Box office" value={formatCurrency(movie.boxOffice)} /> : null}
+          </dl>
+        </Section>
+      ) : null}
+
+      {hasRatings ? (
+        <Section title="Ratings">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {movie.imdbRating != null ? <MetaRow label="IMDb rating" value={formatImdbRating(movie.imdbRating)} /> : null}
+            {movie.imdbVoteCount != null ? <MetaRow label="IMDb votes" value={formatCompactNumber(movie.imdbVoteCount)} /> : null}
           </dl>
         </Section>
       ) : null}

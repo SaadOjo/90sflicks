@@ -1,5 +1,5 @@
 import type { ArchiveMovieListItem } from '../../shared/types/archive';
-import { formatCurrency, formatDisplayDate, formatFilmType } from '../lib/formatters';
+import { formatCompactCount, formatCurrency, formatDisplayDate, formatFilmType, formatImdbRating } from '../lib/formatters';
 
 interface MovieCardProps {
   movie: ArchiveMovieListItem;
@@ -11,6 +11,8 @@ export function MovieCard({ movie, selected, onSelect }: MovieCardProps) {
   const directors = movie.directors.join(', ');
   const mainCast = movie.mainCast.join(', ');
   const boxOffice = movie.boxOffice != null ? formatCurrency(movie.boxOffice) : null;
+  const imdbRating = movie.imdbRating != null ? formatImdbRating(movie.imdbRating) : null;
+  const imdbVoteCount = movie.imdbVoteCount != null ? formatCompactCount(movie.imdbVoteCount) : null;
 
   return (
     <article
@@ -48,10 +50,21 @@ export function MovieCard({ movie, selected, onSelect }: MovieCardProps) {
         </div>
       </div>
 
-      {boxOffice ? (
-        <div className="mt-4 text-sm text-slate-600">
-          <span className="mr-2 text-xs font-medium text-slate-400">Box office</span>
-          <span className="font-medium text-slate-800">{boxOffice}</span>
+      {boxOffice || imdbRating ? (
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600">
+          {boxOffice ? (
+            <div>
+              <span className="mr-2 text-xs font-medium text-slate-400">Box office</span>
+              <span className="font-medium text-slate-800">{boxOffice}</span>
+            </div>
+          ) : null}
+          {imdbRating ? (
+            <div>
+              <span className="mr-2 text-xs font-medium text-slate-400">IMDb</span>
+              <span className="font-medium text-slate-800">{imdbRating}</span>
+              {imdbVoteCount ? <span className="ml-2 text-xs text-slate-500">({imdbVoteCount} votes)</span> : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </article>

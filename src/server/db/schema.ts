@@ -1,4 +1,4 @@
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const movie = sqliteTable(
   'movie',
@@ -10,10 +10,16 @@ export const movie = sqliteTable(
     filmType: text('film_type'),
     budget: integer('budget'),
     boxOffice: integer('box_office'),
+    imdbRating: real('imdb_rating'),
+    imdbVoteCount: integer('imdb_vote_count'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (table) => [index('movie_release_year_idx').on(table.releaseYear), index('movie_film_type_idx').on(table.filmType)],
+  (table) => [
+    index('movie_release_year_idx').on(table.releaseYear),
+    index('movie_film_type_idx').on(table.filmType),
+    index('movie_imdb_rating_idx').on(table.imdbRating),
+  ],
 );
 
 export const genre = sqliteTable('genre', {

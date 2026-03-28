@@ -39,6 +39,8 @@ export interface ArchiveMovieListItem {
   releaseDate?: string;
   filmType?: string;
   boxOffice?: number;
+  imdbRating?: number;
+  imdbVoteCount?: number;
   genres: string[];
   directors: string[];
   mainCast: string[];
@@ -52,6 +54,8 @@ export interface ArchiveMovie {
   filmType?: string;
   budget?: number;
   boxOffice?: number;
+  imdbRating?: number;
+  imdbVoteCount?: number;
   genres: string[];
   credits: MovieCredit[];
   companies: MovieCompanyCredit[];

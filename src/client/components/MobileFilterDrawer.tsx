@@ -20,8 +20,12 @@ interface MobileFilterDrawerProps {
   isCompanyLoading: boolean;
   budgetFilter: NumericRangeFilter;
   boxOfficeFilter: NumericRangeFilter;
+  imdbRatingFilter: NumericRangeFilter;
+  imdbVoteCountFilter: NumericRangeFilter;
   selectedBudgetPreset: string | null;
   selectedBoxOfficePreset: string | null;
+  selectedRatingPreset: string | null;
+  selectedVotePreset: string | null;
   onYearToggle: (year: number) => void;
   onGenreToggle: (genre: string) => void;
   onFilmTypeToggle: (filmType: string) => void;
@@ -35,6 +39,10 @@ interface MobileFilterDrawerProps {
   onBoxOfficeFilterChange: (next: NumericRangeFilter) => void;
   onBudgetPresetSelect: (presetLabel: string | null) => void;
   onBoxOfficePresetSelect: (presetLabel: string | null) => void;
+  onImdbRatingFilterChange: (next: NumericRangeFilter) => void;
+  onImdbVoteCountFilterChange: (next: NumericRangeFilter) => void;
+  onRatingPresetSelect: (presetLabel: string | null) => void;
+  onVotePresetSelect: (presetLabel: string | null) => void;
   onClearAll: () => void;
   onClose: () => void;
 }

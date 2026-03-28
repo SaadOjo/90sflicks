@@ -69,3 +69,22 @@ export function formatFilmType(value?: string): string {
 export function formatCompactNumber(value: number): string {
   return new Intl.NumberFormat('en-US').format(value);
 }
+
+export function formatCompactCount(value?: number): string {
+  if (value == null) return 'N/A';
+
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000) {
+    return `${trimDecimal(value / 1_000_000)}M`;
+  }
+  if (absolute >= 1_000) {
+    return `${trimDecimal(value / 1_000)}K`;
+  }
+
+  return formatCompactNumber(value);
+}
+
+export function formatImdbRating(value?: number): string {
+  if (value == null) return 'N/A';
+  return value.toFixed(1);
+}

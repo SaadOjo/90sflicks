@@ -36,12 +36,15 @@ Columns:
 - `film_type` text null
 - `budget` integer null
 - `box_office` integer null
+- `imdb_rating` real null
+- `imdb_vote_count` integer null
 - `created_at` text not null
 - `updated_at` text not null
 
 Indexes:
 - index on `release_year`
 - index on `film_type`
+- index on `imdb_rating`
 
 ### genre
 Columns:
