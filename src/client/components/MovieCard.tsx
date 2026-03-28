@@ -15,17 +15,17 @@ export function MovieCard({ movie, selected, onSelect }: MovieCardProps) {
   return (
     <article
       className={selected
-        ? 'neo-card neo-card-selected cursor-pointer rounded-xl border p-5 transition-colors'
-        : 'neo-card neo-card-hover cursor-pointer rounded-xl border p-5 transition-colors'}
+        ? 'neo-card neo-card-selected cursor-pointer rounded-xl border p-4 transition-colors sm:p-5'
+        : 'neo-card neo-card-hover cursor-pointer rounded-xl border p-4 transition-colors sm:p-5'}
       onClick={() => onSelect(movie)}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <h3 className="font-headline text-2xl font-semibold text-slate-900">{movie.title}</h3>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <h3 className="font-headline text-xl font-semibold text-slate-900 sm:text-2xl">{movie.title}</h3>
             <span className="text-sm text-slate-500">{movie.releaseYear}</span>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500 sm:gap-3">
             <span>{formatDisplayDate(movie.releaseDate)}</span>
             {movie.genres.length > 0 ? <span>•</span> : null}
             <span>{movie.genres.join(', ')}</span>

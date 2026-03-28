@@ -60,7 +60,31 @@ export function Pagination({ currentPage, pageSize, totalItems, onPageChange, on
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="flex items-center justify-between gap-2 sm:hidden">
+        <button
+          className="neo-panel rounded-md border px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          type="button"
+        >
+          Previous
+        </button>
+
+        <span className="text-sm text-slate-500">
+          Page {currentPage} of {totalPages}
+        </span>
+
+        <button
+          className="neo-panel rounded-md border px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={currentPage === totalPages || totalItems === 0}
+          onClick={() => onPageChange(currentPage + 1)}
+          type="button"
+        >
+          Next
+        </button>
+      </div>
+
+      <div className="hidden flex-wrap items-center justify-center gap-2 sm:flex">
         <button
           className="neo-panel rounded-md border px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={currentPage === 1}
