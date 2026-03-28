@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type {
   CompanySuggestion,
   MovieCompanyRole,
@@ -11,18 +12,26 @@ interface YearOption {
   count: number;
 }
 
-interface NumericRangeSectionProps {
+interface RangePreset {
   label: string;
-  value: NumericRangeFilter;
-  minInput: string;
-  maxInput: string;
-  onKnownOnlyChange: (checked: boolean) => void;
-  onMinInputChange: (value: string) => void;
-  onMaxInputChange: (value: string) => void;
+  min?: number;
+  max?: number;
+}
+
+interface FinancialFilterSectionProps {
+  budgetFilter: NumericRangeFilter;
+  boxOfficeFilter: NumericRangeFilter;
+  selectedBudgetPreset: string | null;
+  selectedBoxOfficePreset: string | null;
+  budgetPresets: RangePreset[];
+  boxOfficePresets: RangePreset[];
+  onBudgetKnownOnlyChange: (checked: boolean) => void;
+  onBoxOfficeKnownOnlyChange: (checked: boolean) => void;
+  onBudgetPresetSelect: (presetLabel: string | null) => void;
+  onBoxOfficePresetSelect: (presetLabel: string | null) => void;
 }
 
 interface FilterSidebarProps {
-  search: string;
   selectedYears: number[];
   selectedGenres: string[];
   selectedFilmTypes: string[];
@@ -38,12 +47,9 @@ interface FilterSidebarProps {
   companySuggestions: CompanySuggestion[];
   isCompanyLoading: boolean;
   budgetFilter: NumericRangeFilter;
-  budgetMinInput: string;
-  budgetMaxInput: string;
   boxOfficeFilter: NumericRangeFilter;
-  boxOfficeMinInput: string;
-  boxOfficeMaxInput: string;
-  onSearchChange: (value: string) => void;
+  selectedBudgetPreset: string | null;
+  selectedBoxOfficePreset: string | null;
   onYearToggle: (year: number) => void;
   onGenreToggle: (genre: string) => void;
   onFilmTypeToggle: (filmType: string) => void;
@@ -54,13 +60,23 @@ interface FilterSidebarProps {
   onSelectCompany: (company: CompanySuggestion) => void;
   onRemoveCompany: (companyId: string) => void;
   onBudgetFilterChange: (next: NumericRangeFilter) => void;
-  onBudgetMinInputChange: (value: string) => void;
-  onBudgetMaxInputChange: (value: string) => void;
   onBoxOfficeFilterChange: (next: NumericRangeFilter) => void;
-  onBoxOfficeMinInputChange: (value: string) => void;
-  onBoxOfficeMaxInputChange: (value: string) => void;
+  onBudgetPresetSelect: (presetLabel: string | null) => void;
+  onBoxOfficePresetSelect: (presetLabel: string | null) => void;
   onClearAll: () => void;
 }
+
+const BUDGET_PRESETS: RangePreset[] = [
+  { label: 'Under $10M', max: 10_000_000 },
+  { label: '$10M–$50M', min: 10_000_000, max: 50_000_000 },
+  { label: '$50M+', min: 50_000_000 },
+];
+
+const BOX_OFFICE_PRESETS: RangePreset[] = [
+  { label: 'Under $50M', max: 50_000_000 },
+  { label: '$50M–$200M', min: 50_000_000, max: 200_000_000 },
+  { label: '$200M+', min: 200_000_000 },
+];
 
 function formatPersonRole(role: MoviePersonRole): string {
   switch (role) {
@@ -84,51 +100,103 @@ function formatCompanyRole(role: MovieCompanyRole): string {
   }
 }
 
-function NumericRangeSection({
-  label,
-  value,
-  minInput,
-  maxInput,
-  onKnownOnlyChange,
-  onMinInputChange,
-  onMaxInputChange,
-}: NumericRangeSectionProps) {
+function PresetChips({
+  presets,
+  selectedLabel,
+  onSelect,
+}: {
+  presets: RangePreset[];
+  selectedLabel: string | null;
+  onSelect: (label: string | null) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {presets.map((preset) => {
+        const active = selectedLabel === preset.label;
+        return (
+          <button
+            key={preset.label}
+            className={
+              active
+                ? 'rounded-full bg-primary px-3 py-1 text-xs font-medium text-white'
+                : 'rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100'
+            }
+            onClick={() => onSelect(active ? null : preset.label)}
+            type="button"
+          >
+            {preset.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FinancialFilterSection({
+  budgetFilter,
+  boxOfficeFilter,
+  selectedBudgetPreset,
+  selectedBoxOfficePreset,
+  budgetPresets,
+  boxOfficePresets,
+  onBudgetKnownOnlyChange,
+  onBoxOfficeKnownOnlyChange,
+  onBudgetPresetSelect,
+  onBoxOfficePresetSelect,
+}: FinancialFilterSectionProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <section>
-      <label className="mb-2 block text-xs font-medium text-slate-600">{label}</label>
-      <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            checked={value.knownOnly}
-            className="h-3.5 w-3.5 rounded-sm border-slate-300 text-primary focus:ring-0"
-            type="checkbox"
-            onChange={(event) => onKnownOnlyChange(event.target.checked)}
-          />
-          Known only
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-primary"
-            placeholder="Min (e.g. 5M)"
-            type="text"
-            value={minInput}
-            onChange={(event) => onMinInputChange(event.target.value)}
-          />
-          <input
-            className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-primary"
-            placeholder="Max (e.g. 100M)"
-            type="text"
-            value={maxInput}
-            onChange={(event) => onMaxInputChange(event.target.value)}
-          />
+      <button
+        className="flex w-full items-center justify-between border-b border-slate-200 pb-2 text-left text-xs font-medium text-slate-600"
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <span>Financials</span>
+        <span className="material-symbols-outlined text-base text-slate-400">{isOpen ? 'expand_less' : 'expand_more'}</span>
+      </button>
+
+      {isOpen ? (
+        <div className="mt-3 space-y-4 rounded-md border border-slate-200 bg-white p-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-700">Budget</span>
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  checked={budgetFilter.knownOnly}
+                  className="h-3.5 w-3.5 rounded-sm border-slate-300 text-primary focus:ring-0"
+                  type="checkbox"
+                  onChange={(event) => onBudgetKnownOnlyChange(event.target.checked)}
+                />
+                Known only
+              </label>
+            </div>
+            <PresetChips presets={budgetPresets} selectedLabel={selectedBudgetPreset} onSelect={onBudgetPresetSelect} />
+          </div>
+
+          <div className="space-y-2 border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-700">Box office</span>
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  checked={boxOfficeFilter.knownOnly}
+                  className="h-3.5 w-3.5 rounded-sm border-slate-300 text-primary focus:ring-0"
+                  type="checkbox"
+                  onChange={(event) => onBoxOfficeKnownOnlyChange(event.target.checked)}
+                />
+                Known only
+              </label>
+            </div>
+            <PresetChips presets={boxOfficePresets} selectedLabel={selectedBoxOfficePreset} onSelect={onBoxOfficePresetSelect} />
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }
 
 export function FilterSidebar({
-  search,
   selectedYears,
   selectedGenres,
   selectedFilmTypes,
@@ -144,12 +212,9 @@ export function FilterSidebar({
   companySuggestions,
   isCompanyLoading,
   budgetFilter,
-  budgetMinInput,
-  budgetMaxInput,
   boxOfficeFilter,
-  boxOfficeMinInput,
-  boxOfficeMaxInput,
-  onSearchChange,
+  selectedBudgetPreset,
+  selectedBoxOfficePreset,
   onYearToggle,
   onGenreToggle,
   onFilmTypeToggle,
@@ -160,38 +225,18 @@ export function FilterSidebar({
   onSelectCompany,
   onRemoveCompany,
   onBudgetFilterChange,
-  onBudgetMinInputChange,
-  onBudgetMaxInputChange,
   onBoxOfficeFilterChange,
-  onBoxOfficeMinInputChange,
-  onBoxOfficeMaxInputChange,
+  onBudgetPresetSelect,
+  onBoxOfficePresetSelect,
   onClearAll,
 }: FilterSidebarProps) {
   return (
     <aside className="fixed left-0 top-16 bottom-0 flex w-72 flex-col overflow-y-auto border-r border-slate-200/80 bg-slate-50 px-5 py-5">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">Filters</h2>
-          <p className="mt-1 text-xs text-slate-500">Refine the movie list</p>
-        </div>
+      <div className="mb-2 flex justify-end">
         <span className="material-symbols-outlined text-base text-slate-400">tune</span>
       </div>
 
       <div className="space-y-6">
-        <section>
-          <label className="mb-2 block text-xs font-medium text-slate-600">Search</label>
-          <div className="relative">
-            <input
-              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-primary"
-              placeholder="Search titles"
-              type="text"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-            />
-            <span className="material-symbols-outlined absolute top-2.5 right-2 text-base text-slate-400">search</span>
-          </div>
-        </section>
-
         <section>
           <label className="mb-2 block text-xs font-medium text-slate-600">Years</label>
           <div className="grid grid-cols-2 gap-2">
@@ -238,7 +283,7 @@ export function FilterSidebar({
         </section>
 
         <section>
-          <label className="mb-2 block text-xs font-medium text-slate-600">Format</label>
+          <label className="mb-2 block text-xs font-medium text-slate-600">Type</label>
           <div className="space-y-1">
             {filmTypes.map((filmType) => {
               const checked = selectedFilmTypes.includes(filmType);
@@ -373,24 +418,17 @@ export function FilterSidebar({
           </div>
         </section>
 
-        <NumericRangeSection
-          label="Budget"
-          value={budgetFilter}
-          minInput={budgetMinInput}
-          maxInput={budgetMaxInput}
-          onKnownOnlyChange={(checked) => onBudgetFilterChange({ ...budgetFilter, knownOnly: checked })}
-          onMinInputChange={onBudgetMinInputChange}
-          onMaxInputChange={onBudgetMaxInputChange}
-        />
-
-        <NumericRangeSection
-          label="Box office"
-          value={boxOfficeFilter}
-          minInput={boxOfficeMinInput}
-          maxInput={boxOfficeMaxInput}
-          onKnownOnlyChange={(checked) => onBoxOfficeFilterChange({ ...boxOfficeFilter, knownOnly: checked })}
-          onMinInputChange={onBoxOfficeMinInputChange}
-          onMaxInputChange={onBoxOfficeMaxInputChange}
+        <FinancialFilterSection
+          boxOfficeFilter={boxOfficeFilter}
+          budgetFilter={budgetFilter}
+          selectedBudgetPreset={selectedBudgetPreset}
+          selectedBoxOfficePreset={selectedBoxOfficePreset}
+          budgetPresets={BUDGET_PRESETS}
+          boxOfficePresets={BOX_OFFICE_PRESETS}
+          onBudgetKnownOnlyChange={(checked) => onBudgetFilterChange({ ...budgetFilter, knownOnly: checked })}
+          onBoxOfficeKnownOnlyChange={(checked) => onBoxOfficeFilterChange({ ...boxOfficeFilter, knownOnly: checked })}
+          onBudgetPresetSelect={onBudgetPresetSelect}
+          onBoxOfficePresetSelect={onBoxOfficePresetSelect}
         />
       </div>
 

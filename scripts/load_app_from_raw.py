@@ -13,6 +13,71 @@ BUILD_DIR = Path("build/app_load")
 PSQL = os.environ.get("PSQL", "/opt/homebrew/opt/postgresql@17/bin/psql")
 DB_NAME = os.environ.get("MOVIE_FILTER_DB", "movie_filter")
 CAST_CATEGORIES = {"actor", "actress", "self"}
+D1_SQL_PATH = BUILD_DIR / "load_d1.sql"
+D1_TABLES = [
+    ("movie", ["id", "title", "release_year", "release_date", "film_type", "budget", "box_office", "created_at", "updated_at"]),
+    ("genre", ["id", "name"]),
+    ("person", ["id", "name", "created_at", "updated_at"]),
+    ("company", ["id", "name", "created_at", "updated_at"]),
+    ("movie_genre", ["movie_id", "genre_id"]),
+    ("movie_person", ["movie_id", "person_id", "role_type", "credit_order"]),
+    ("movie_company", ["movie_id", "company_id", "role_type"]),
+]
+
+RAW_GENRE_TO_CANONICAL = {
+    "action film": ["Action"],
+    "adventure film": ["Adventure"],
+    "biographical film": ["Biography"],
+    "comedy film": ["Comedy"],
+    "documentary film": ["Documentary"],
+    "drama film": ["Drama"],
+    "fantasy film": ["Fantasy"],
+    "horror film": ["Horror"],
+    "musical film": ["Musical"],
+    "romance film": ["Romance"],
+    "science fiction film": ["Sci-Fi"],
+    "thriller film": ["Thriller"],
+    "g-funk": ["Music"],
+    "west coast hip-hop": ["Music"],
+    "adult contemporary music": ["Music"],
+    "alternative rock": ["Music"],
+    "concert film": ["Music"],
+    "dance music": ["Music"],
+    "gangsta rap": ["Music"],
+    "glam rock": ["Music"],
+    "hard rock": ["Music"],
+    "heavy metal music": ["Music"],
+    "hip-hop": ["Music"],
+    "house music": ["Music"],
+    "music video": ["Music"],
+    "new jack swing": ["Music"],
+    "pop music": ["Music"],
+    "progressive metal": ["Music"],
+    "rap rock": ["Music"],
+    "rapping": ["Music"],
+    "rock music": ["Music"],
+    "trip hop": ["Music"],
+    "video album": ["Music"],
+    "black comedy film": ["Comedy"],
+    "children's film": ["Family"],
+    "character": ["Family"],
+    "educational film": ["Family"],
+    "training film": ["Sport"],
+    "romantic comedy": ["Romance", "Comedy"],
+    "cyberpunk": ["Sci-Fi"],
+    "dystopian film": ["Sci-Fi"],
+    "speculative fiction film": ["Sci-Fi"],
+    "nature documentary": ["Documentary"],
+    "news": ["Documentary"],
+    "short documentary film": ["Short", "Documentary"],
+    "erotic film": ["Adult"],
+    "pornographic film": ["Adult"],
+    "lgbtq+-related film": ["Drama"],
+    "fiction film": ["Drama"],
+    "crossover fiction": ["Drama"],
+    "silent film": ["Short"],
+}
+GENRE_NORMALIZATION = {}
 
 
 def read_tsv(path: Path):
@@ -52,6 +117,26 @@ def split_csv(value):
 
 def normalize_key(value: str):
     return " ".join(value.strip().split()).casefold()
+
+
+GENRE_NORMALIZATION = {normalize_key(raw): canonical for raw, canonical in RAW_GENRE_TO_CANONICAL.items()}
+
+
+def normalize_genres(values):
+    normalized = []
+    seen = set()
+    for value in values:
+        value = nullify(value)
+        if value is None:
+            continue
+        canonical_values = GENRE_NORMALIZATION.get(normalize_key(value), [value.strip()])
+        for canonical in canonical_values:
+            key = normalize_key(canonical)
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(canonical)
+    return normalized
 
 
 def load_wikidata_movies():
@@ -237,6 +322,7 @@ def build_app_rows():
                     for wd in wd_movies
                     for genre in wd.get("genres", [])
                 )
+            genre_names = normalize_genres(genre_names)
             producers = unique_preserve_order(
                 producer
                 for wd in wd_movies
@@ -266,7 +352,7 @@ def build_app_rows():
             film_type = None
             budget = parse_int(wd.get("budget"))
             box_office = parse_int(wd.get("box_office"))
-            genre_names = unique_preserve_order(wd.get("genres", []))
+            genre_names = normalize_genres(unique_preserve_order(wd.get("genres", [])))
             producers = unique_preserve_order(wd.get("producers", []))
             production_companies = unique_preserve_order(wd.get("production_companies", []))
             distributors = unique_preserve_order(wd.get("distributors", []))
@@ -275,6 +361,8 @@ def build_app_rows():
             cast = []
 
         if not title or release_year is None:
+            return
+        if release_year < 1990 or release_year > 1999:
             return
 
         movie_id = movie_ids.get_or_create(movie_key)
@@ -431,12 +519,65 @@ def load_to_postgres(output_dir: Path, schema: str, truncate: bool):
     reset_sequences(schema)
 
 
+def sql_value(value):
+    if value is None or value == "":
+        return "NULL"
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (int, float)):
+        return str(value)
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
+def row_to_sql(columns, row):
+    values = [sql_value(row.get(column)) for column in columns]
+    return f"({', '.join(values)})"
+
+
+def batched(items, size):
+    for index in range(0, len(items), size):
+        yield items[index:index + size]
+
+
+def write_d1_load_sql(rows_by_table, path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        f.write("BEGIN TRANSACTION;\n")
+        f.write("PRAGMA foreign_keys = OFF;\n")
+        for table, _ in reversed(D1_TABLES):
+            f.write(f"DELETE FROM {table};\n")
+        for table, columns in D1_TABLES:
+            rows = rows_by_table[table]
+            if not rows:
+                continue
+            for chunk in batched(rows, 500):
+                f.write(f"\nINSERT INTO {table} ({', '.join(columns)}) VALUES\n")
+                f.write(",\n".join(row_to_sql(columns, row) for row in chunk))
+                f.write(";\n")
+        f.write("PRAGMA foreign_keys = ON;\n")
+        f.write("COMMIT;\n")
+
+
+def load_to_d1(rows_by_table, sql_path: Path, binding: str, remote: bool):
+    write_d1_load_sql(rows_by_table, sql_path)
+    command = ["npx", "wrangler", "d1", "execute", binding]
+    if not remote:
+        command.append("--local")
+    command.extend(["--file", str(sql_path)])
+    subprocess.run(command, check=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", default=str(BUILD_DIR))
     parser.add_argument("--load", action="store_true", help="load generated CSV files into Postgres")
     parser.add_argument("--schema", default="public", help="target Postgres schema for app tables")
-    parser.add_argument("--truncate", action="store_true", help="truncate target tables before load")
+    parser.add_argument("--truncate", action="store_true", help="truncate target Postgres tables before load")
+    parser.add_argument("--load-d1", action="store_true", help="load generated app data directly into Cloudflare D1")
+    parser.add_argument("--d1-binding", default="DB", help="Wrangler D1 binding name")
+    parser.add_argument("--d1-remote", action="store_true", help="execute D1 load against the remote database instead of local")
+    parser.add_argument("--d1-sql-path", default=str(D1_SQL_PATH), help="path to the generated D1 load SQL file")
     args = parser.parse_args()
 
     rows_by_table = build_app_rows()
@@ -446,6 +587,9 @@ def main():
 
     if args.load:
         load_to_postgres(output_dir, args.schema, args.truncate)
+
+    if args.load_d1:
+        load_to_d1(rows_by_table, Path(args.d1_sql_path), args.d1_binding, args.d1_remote)
 
 
 if __name__ == "__main__":

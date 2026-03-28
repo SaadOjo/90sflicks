@@ -56,8 +56,7 @@ export function DetailsPanel({ movie, isOpen, onToggle }: DetailsPanelProps) {
           {movie ? (
             <>
               <div>
-                <p className="text-xs font-medium text-slate-400">Selected movie</p>
-                <h2 className="mt-2 font-headline text-3xl font-semibold text-slate-900">{movie.title}</h2>
+                <h2 className="font-headline text-3xl font-semibold text-slate-900">{movie.title}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
                   <span>{movie.releaseYear}</span>
                   <span>•</span>

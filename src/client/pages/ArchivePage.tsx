@@ -6,7 +6,7 @@ import { MovieCard } from '../components/MovieCard';
 import { Pagination } from '../components/Pagination';
 import { TopBar } from '../components/TopBar';
 import { ARCHIVE_INDEXED_COUNT, archiveMovies } from '../lib/mockData';
-import { formatCompactNumber, parseAmountInput } from '../lib/formatters';
+import { formatCompactNumber, formatFilmType } from '../lib/formatters';
 import { searchCompanies } from '../lib/companySearch';
 import { searchPeople } from '../lib/peopleSearch';
 
@@ -15,12 +15,21 @@ const DEFAULT_GENRES: string[] = [];
 const DEFAULT_FILM_TYPES: string[] = [];
 const EMPTY_RANGE_FILTER: NumericRangeFilter = { knownOnly: false };
 
-type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget';
+const BUDGET_PRESETS = {
+  'Under $10M': { max: 10_000_000 },
+  '$10M–$50M': { min: 10_000_000, max: 50_000_000 },
+  '$50M+': { min: 50_000_000 },
+} as const;
 
-function toFilmTypeLabel(value?: string): string {
-  if (!value) return 'Unknown';
-  return value === 'movie' ? 'Movie' : value.charAt(0).toUpperCase() + value.slice(1);
-}
+const BOX_OFFICE_PRESETS = {
+  'Under $50M': { max: 50_000_000 },
+  '$50M–$200M': { min: 50_000_000, max: 200_000_000 },
+  '$200M+': { min: 200_000_000 },
+} as const;
+
+type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget';
+type BudgetPresetLabel = keyof typeof BUDGET_PRESETS;
+type BoxOfficePresetLabel = keyof typeof BOX_OFFICE_PRESETS;
 
 function normalize(value: string): string {
   return value.trim().toLowerCase();
@@ -41,7 +50,6 @@ function matchesNumericRange(value: number | undefined, filter: NumericRangeFilt
 }
 
 export function ArchivePage() {
-  const [search, setSearch] = useState('');
   const [selectedYears, setSelectedYears] = useState<number[]>(DEFAULT_YEARS);
   const [selectedGenres, setSelectedGenres] = useState<string[]>(DEFAULT_GENRES);
   const [selectedFilmTypes, setSelectedFilmTypes] = useState<string[]>(DEFAULT_FILM_TYPES);
@@ -56,12 +64,10 @@ export function ArchivePage() {
   const [companySuggestions, setCompanySuggestions] = useState<CompanySuggestion[]>([]);
   const [isCompanyLoading, setIsCompanyLoading] = useState(false);
 
-  const [budgetMinInput, setBudgetMinInput] = useState('');
-  const [budgetMaxInput, setBudgetMaxInput] = useState('');
-  const [boxOfficeMinInput, setBoxOfficeMinInput] = useState('');
-  const [boxOfficeMaxInput, setBoxOfficeMaxInput] = useState('');
   const [budgetFilter, setBudgetFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
   const [boxOfficeFilter, setBoxOfficeFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
+  const [selectedBudgetPreset, setSelectedBudgetPreset] = useState<BudgetPresetLabel | null>(null);
+  const [selectedBoxOfficePreset, setSelectedBoxOfficePreset] = useState<BoxOfficePresetLabel | null>(null);
 
   const [sortValue, setSortValue] = useState<SortOption>('releaseDate');
   const [selectedMovieId, setSelectedMovieId] = useState<number>(2);
@@ -85,21 +91,9 @@ export function ArchivePage() {
   );
 
   const filmTypes = useMemo(
-    () => Array.from(new Set(archiveMovies.map((movie) => toFilmTypeLabel(movie.filmType)))).sort((a, b) => a.localeCompare(b)),
+    () => Array.from(new Set(archiveMovies.map((movie) => formatFilmType(movie.filmType)))).sort((a, b) => a.localeCompare(b)),
     [],
   );
-
-  useEffect(() => {
-    setBudgetFilter((current) => ({ ...current, min: parseAmountInput(budgetMinInput), max: parseAmountInput(budgetMaxInput) }));
-  }, [budgetMinInput, budgetMaxInput]);
-
-  useEffect(() => {
-    setBoxOfficeFilter((current) => ({
-      ...current,
-      min: parseAmountInput(boxOfficeMinInput),
-      max: parseAmountInput(boxOfficeMaxInput),
-    }));
-  }, [boxOfficeMinInput, boxOfficeMaxInput]);
 
   useEffect(() => {
     const query = peopleQuery.trim();
@@ -154,15 +148,13 @@ export function ArchivePage() {
   }, [companyQuery, selectedCompanies]);
 
   const filteredMovies = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
     const selectedPeopleNames = selectedPeople.map((person) => normalize(person.name));
     const selectedCompanyNames = selectedCompanies.map((company) => normalize(company.name));
 
     const filtered = archiveMovies.filter((movie) => {
-      const titleMatch = !normalizedSearch || movie.title.toLowerCase().includes(normalizedSearch);
       const yearMatch = selectedYears.length === 0 || selectedYears.includes(movie.releaseYear);
       const genreMatch = selectedGenres.length === 0 || selectedGenres.some((genre) => movie.genres.includes(genre));
-      const filmTypeLabel = toFilmTypeLabel(movie.filmType);
+      const filmTypeLabel = formatFilmType(movie.filmType);
       const filmTypeMatch = selectedFilmTypes.length === 0 || selectedFilmTypes.includes(filmTypeLabel);
       const peopleMatch =
         selectedPeopleNames.length === 0 ||
@@ -173,7 +165,7 @@ export function ArchivePage() {
       const budgetMatch = matchesNumericRange(movie.budget, budgetFilter);
       const boxOfficeMatch = matchesNumericRange(movie.boxOffice, boxOfficeFilter);
 
-      return titleMatch && yearMatch && genreMatch && filmTypeMatch && peopleMatch && companyMatch && budgetMatch && boxOfficeMatch;
+      return yearMatch && genreMatch && filmTypeMatch && peopleMatch && companyMatch && budgetMatch && boxOfficeMatch;
     });
 
     filtered.sort((left, right) => {
@@ -191,23 +183,13 @@ export function ArchivePage() {
     });
 
     return filtered;
-  }, [
-    search,
-    selectedYears,
-    selectedGenres,
-    selectedFilmTypes,
-    selectedPeople,
-    selectedCompanies,
-    budgetFilter,
-    boxOfficeFilter,
-    sortValue,
-  ]);
+  }, [selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, sortValue]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMovies.length / pageSize));
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, sortValue, pageSize]);
+  }, [selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, sortValue, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -229,7 +211,6 @@ export function ArchivePage() {
     values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 
   const clearAll = () => {
-    setSearch('');
     setSelectedYears([]);
     setSelectedGenres([]);
     setSelectedFilmTypes([]);
@@ -239,12 +220,10 @@ export function ArchivePage() {
     setCompanyQuery('');
     setSelectedCompanies([]);
     setCompanySuggestions([]);
-    setBudgetMinInput('');
-    setBudgetMaxInput('');
-    setBoxOfficeMinInput('');
-    setBoxOfficeMaxInput('');
     setBudgetFilter(EMPTY_RANGE_FILTER);
     setBoxOfficeFilter(EMPTY_RANGE_FILTER);
+    setSelectedBudgetPreset(null);
+    setSelectedBoxOfficePreset(null);
     setSortValue('releaseDate');
   };
 
@@ -268,17 +247,37 @@ export function ArchivePage() {
     setSelectedCompanies((current) => current.filter((company) => company.id !== companyId));
   };
 
+  const handleBudgetPresetSelect = (presetLabel: string | null) => {
+    if (!presetLabel) {
+      setSelectedBudgetPreset(null);
+      setBudgetFilter((current) => ({ knownOnly: current.knownOnly }));
+      return;
+    }
+
+    const preset = BUDGET_PRESETS[presetLabel as BudgetPresetLabel];
+    setSelectedBudgetPreset(presetLabel as BudgetPresetLabel);
+    setBudgetFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
+  };
+
+  const handleBoxOfficePresetSelect = (presetLabel: string | null) => {
+    if (!presetLabel) {
+      setSelectedBoxOfficePreset(null);
+      setBoxOfficeFilter((current) => ({ knownOnly: current.knownOnly }));
+      return;
+    }
+
+    const preset = BOX_OFFICE_PRESETS[presetLabel as BoxOfficePresetLabel];
+    setSelectedBoxOfficePreset(presetLabel as BoxOfficePresetLabel);
+    setBoxOfficeFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
+  };
+
   return (
     <div className="min-h-screen bg-surface text-on-surface selection:bg-tertiary-container selection:text-on-tertiary-container">
       <TopBar />
 
       <FilterSidebar
         boxOfficeFilter={boxOfficeFilter}
-        boxOfficeMaxInput={boxOfficeMaxInput}
-        boxOfficeMinInput={boxOfficeMinInput}
         budgetFilter={budgetFilter}
-        budgetMaxInput={budgetMaxInput}
-        budgetMinInput={budgetMinInput}
         companyQuery={companyQuery}
         companySuggestions={companySuggestions}
         filmTypes={filmTypes}
@@ -287,7 +286,8 @@ export function ArchivePage() {
         isPeopleLoading={isPeopleLoading}
         peopleQuery={peopleQuery}
         peopleSuggestions={peopleSuggestions}
-        search={search}
+        selectedBoxOfficePreset={selectedBoxOfficePreset}
+        selectedBudgetPreset={selectedBudgetPreset}
         selectedCompanies={selectedCompanies}
         selectedFilmTypes={selectedFilmTypes}
         selectedGenres={selectedGenres}
@@ -295,11 +295,9 @@ export function ArchivePage() {
         selectedYears={selectedYears}
         years={years}
         onBoxOfficeFilterChange={setBoxOfficeFilter}
-        onBoxOfficeMaxInputChange={setBoxOfficeMaxInput}
-        onBoxOfficeMinInputChange={setBoxOfficeMinInput}
+        onBoxOfficePresetSelect={handleBoxOfficePresetSelect}
         onBudgetFilterChange={setBudgetFilter}
-        onBudgetMaxInputChange={setBudgetMaxInput}
-        onBudgetMinInputChange={setBudgetMinInput}
+        onBudgetPresetSelect={handleBudgetPresetSelect}
         onClearAll={clearAll}
         onCompanyQueryChange={setCompanyQuery}
         onFilmTypeToggle={(value) => setSelectedFilmTypes((current) => toggleString(current, value))}
@@ -307,7 +305,6 @@ export function ArchivePage() {
         onPeopleQueryChange={setPeopleQuery}
         onRemoveCompany={handleRemoveCompany}
         onRemovePerson={handleRemovePerson}
-        onSearchChange={setSearch}
         onSelectCompany={handleSelectCompany}
         onSelectPerson={handleSelectPerson}
         onYearToggle={(value) => setSelectedYears((current) => toggleNumber(current, value))}
@@ -315,12 +312,7 @@ export function ArchivePage() {
 
       <main className={`mt-16 min-h-screen px-6 py-6 lg:ml-72 ${isDetailsPanelOpen ? 'lg:mr-[380px]' : 'lg:mr-0'}`}>
         <div className="mx-auto max-w-4xl">
-          <div className="mb-8 flex flex-col gap-4">
-            <div>
-              <h1 className="font-headline text-4xl font-semibold text-slate-900">Browse results</h1>
-              <p className="mt-1 text-sm text-slate-500">Filter and inspect titles from the archive.</p>
-            </div>
-
+          <div className="mb-8">
             <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-500">
                 <span className="font-medium text-slate-900">{formatCompactNumber(filteredMovies.length)}</span> results
