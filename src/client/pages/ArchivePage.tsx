@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ArchiveMovie, CompanySuggestion, NumericRangeFilter, PersonSuggestion } from '../../shared/types/archive';
-import type { ArchiveFacetsResponse, ArchiveMoviesResponse } from '../../shared/types/api';
+import type { ArchiveMovie, CompanySuggestion, PersonSuggestion } from '../../shared/types/archive';
+import type { ArchiveFacetsResponse, ArchiveMoviesResponse, ArchiveNumericBucketFacet } from '../../shared/types/api';
 import { DetailsPanel } from '../components/DetailsPanel';
 import { FilterSidebar } from '../components/FilterSidebar';
 import { MobileDetailsDrawer } from '../components/MobileDetailsDrawer';
@@ -18,7 +18,7 @@ import { searchPeople } from '../lib/peopleSearch';
 const DEFAULT_YEARS: number[] = [];
 const DEFAULT_GENRES: string[] = [];
 const DEFAULT_FILM_TYPES: string[] = [];
-const EMPTY_RANGE_FILTER: NumericRangeFilter = { knownOnly: false };
+const DEFAULT_BUCKET_SELECTION: string[] = [];
 const FULL_DECADE_YEARS = Array.from({ length: 10 }, (_, index) => 1990 + index);
 
 const EMPTY_ARCHIVE_RESPONSE: ArchiveMoviesResponse = {
@@ -34,36 +34,11 @@ const EMPTY_FACETS_RESPONSE: ArchiveFacetsResponse = {
   years: FULL_DECADE_YEARS.map((year) => ({ year, count: 0 })),
   genres: [],
   filmTypes: [],
+  budgetBuckets: [],
+  boxOfficeBuckets: [],
+  imdbRatingBuckets: [],
+  imdbVoteCountBuckets: [],
 };
-
-const BUDGET_PRESETS = {
-  'Under $10M': { max: 10_000_000 },
-  '$10M–$50M': { min: 10_000_000, max: 50_000_000 },
-  '$50M+': { min: 50_000_000 },
-} as const;
-
-const BOX_OFFICE_PRESETS = {
-  'Under $50M': { max: 50_000_000 },
-  '$50M–$200M': { min: 50_000_000, max: 200_000_000 },
-  '$200M+': { min: 200_000_000 },
-} as const;
-
-const IMDB_RATING_PRESETS = {
-  '5.0+': { min: 5 },
-  '7.0+': { min: 7 },
-  '8.0+': { min: 8 },
-} as const;
-
-const IMDB_VOTE_PRESETS = {
-  '1K+': { min: 1_000 },
-  '10K+': { min: 10_000 },
-  '100K+': { min: 100_000 },
-} as const;
-
-type BudgetPresetLabel = keyof typeof BUDGET_PRESETS;
-type BoxOfficePresetLabel = keyof typeof BOX_OFFICE_PRESETS;
-type ImdbRatingPresetLabel = keyof typeof IMDB_RATING_PRESETS;
-type ImdbVotePresetLabel = keyof typeof IMDB_VOTE_PRESETS;
 
 function mergeFullDecadeYears(years: ArchiveFacetsResponse['years']): YearOption[] {
   const countByYear = new Map(years.map((item) => [item.year, item.count]));
@@ -82,8 +57,8 @@ function toggleValue<T>(values: T[], value: T): T[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function isRangeFilterActive(filter: NumericRangeFilter): boolean {
-  return filter.knownOnly || filter.min != null || filter.max != null;
+function mapBucketOptions(facets: ArchiveNumericBucketFacet[]): SelectOption[] {
+  return facets.map((facet) => ({ value: facet.key, label: facet.label, count: facet.count }));
 }
 
 function countActiveFilters(filters: ArchiveRequestFilters): number {
@@ -93,10 +68,10 @@ function countActiveFilters(filters: ArchiveRequestFilters): number {
   if (filters.selectedFilmTypes.length > 0) count += 1;
   if (filters.selectedPersonIds.length > 0) count += 1;
   if (filters.selectedCompanyIds.length > 0) count += 1;
-  if (isRangeFilterActive(filters.budgetFilter)) count += 1;
-  if (isRangeFilterActive(filters.boxOfficeFilter)) count += 1;
-  if (isRangeFilterActive(filters.imdbRatingFilter)) count += 1;
-  if (isRangeFilterActive(filters.imdbVoteCountFilter)) count += 1;
+  if (filters.selectedBudgetBuckets.length > 0) count += 1;
+  if (filters.selectedBoxOfficeBuckets.length > 0) count += 1;
+  if (filters.selectedImdbRatingBuckets.length > 0) count += 1;
+  if (filters.selectedImdbVoteCountBuckets.length > 0) count += 1;
   return count;
 }
 
@@ -115,14 +90,10 @@ export function ArchivePage() {
   const [companyQuery, setCompanyQuery] = useState('');
   const [selectedCompanies, setSelectedCompanies] = useState<CompanySuggestion[]>([]);
 
-  const [budgetFilter, setBudgetFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
-  const [boxOfficeFilter, setBoxOfficeFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
-  const [imdbRatingFilter, setImdbRatingFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
-  const [imdbVoteCountFilter, setImdbVoteCountFilter] = useState<NumericRangeFilter>(EMPTY_RANGE_FILTER);
-  const [selectedBudgetPreset, setSelectedBudgetPreset] = useState<BudgetPresetLabel | null>(null);
-  const [selectedBoxOfficePreset, setSelectedBoxOfficePreset] = useState<BoxOfficePresetLabel | null>(null);
-  const [selectedRatingPreset, setSelectedRatingPreset] = useState<ImdbRatingPresetLabel | null>(null);
-  const [selectedVotePreset, setSelectedVotePreset] = useState<ImdbVotePresetLabel | null>(null);
+  const [selectedBudgetBuckets, setSelectedBudgetBuckets] = useState<string[]>(DEFAULT_BUCKET_SELECTION);
+  const [selectedBoxOfficeBuckets, setSelectedBoxOfficeBuckets] = useState<string[]>(DEFAULT_BUCKET_SELECTION);
+  const [selectedImdbRatingBuckets, setSelectedImdbRatingBuckets] = useState<string[]>(DEFAULT_BUCKET_SELECTION);
+  const [selectedImdbVoteCountBuckets, setSelectedImdbVoteCountBuckets] = useState<string[]>(DEFAULT_BUCKET_SELECTION);
 
   const [sortValue, setSortValue] = useState<SortOption>('releaseDate');
   const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
@@ -150,18 +121,32 @@ export function ArchivePage() {
       selectedFilmTypes,
       selectedPersonIds: selectedPeople.map((person) => person.id),
       selectedCompanyIds: selectedCompanies.map((company) => company.id),
-      budgetFilter,
-      boxOfficeFilter,
-      imdbRatingFilter,
-      imdbVoteCountFilter,
+      selectedBudgetBuckets,
+      selectedBoxOfficeBuckets,
+      selectedImdbRatingBuckets,
+      selectedImdbVoteCountBuckets,
     }),
-    [boxOfficeFilter, budgetFilter, imdbRatingFilter, imdbVoteCountFilter, selectedCompanies, selectedFilmTypes, selectedGenres, selectedPeople, selectedYears],
+    [
+      selectedBudgetBuckets,
+      selectedBoxOfficeBuckets,
+      selectedCompanies,
+      selectedFilmTypes,
+      selectedGenres,
+      selectedImdbRatingBuckets,
+      selectedImdbVoteCountBuckets,
+      selectedPeople,
+      selectedYears,
+    ],
   );
 
   const activeFilterCount = useMemo(() => countActiveFilters(requestFilters), [requestFilters]);
   const years = useMemo<YearOption[]>(() => mergeFullDecadeYears(facetsResponse.years), [facetsResponse.years]);
   const genreOptions = useMemo<SelectOption[]>(() => mapGenreOptions(facetsResponse), [facetsResponse]);
   const typeOptions = useMemo<SelectOption[]>(() => mapTypeOptions(facetsResponse), [facetsResponse]);
+  const budgetBucketOptions = useMemo<SelectOption[]>(() => mapBucketOptions(facetsResponse.budgetBuckets), [facetsResponse.budgetBuckets]);
+  const boxOfficeBucketOptions = useMemo<SelectOption[]>(() => mapBucketOptions(facetsResponse.boxOfficeBuckets), [facetsResponse.boxOfficeBuckets]);
+  const imdbRatingBucketOptions = useMemo<SelectOption[]>(() => mapBucketOptions(facetsResponse.imdbRatingBuckets), [facetsResponse.imdbRatingBuckets]);
+  const imdbVoteCountBucketOptions = useMemo<SelectOption[]>(() => mapBucketOptions(facetsResponse.imdbVoteCountBuckets), [facetsResponse.imdbVoteCountBuckets]);
 
   const { suggestions: peopleSuggestions, isLoading: isPeopleLoading } = useAutocompleteSuggestions({
     query: peopleQuery,
@@ -204,7 +189,19 @@ export function ArchivePage() {
   useEffect(() => {
     setCurrentPage(1);
     setIsMobileDetailsOpen(false);
-  }, [selectedYears, selectedGenres, selectedFilmTypes, selectedPeople, selectedCompanies, budgetFilter, boxOfficeFilter, imdbRatingFilter, imdbVoteCountFilter, sortValue, pageSize]);
+  }, [
+    selectedYears,
+    selectedGenres,
+    selectedFilmTypes,
+    selectedPeople,
+    selectedCompanies,
+    selectedBudgetBuckets,
+    selectedBoxOfficeBuckets,
+    selectedImdbRatingBuckets,
+    selectedImdbVoteCountBuckets,
+    sortValue,
+    pageSize,
+  ]);
 
   useEffect(() => {
     if (!isMobileFiltersOpen && !isMobileDetailsOpen) {
@@ -333,14 +330,10 @@ export function ArchivePage() {
     setSelectedPeople([]);
     setCompanyQuery('');
     setSelectedCompanies([]);
-    setBudgetFilter(EMPTY_RANGE_FILTER);
-    setBoxOfficeFilter(EMPTY_RANGE_FILTER);
-    setImdbRatingFilter(EMPTY_RANGE_FILTER);
-    setImdbVoteCountFilter(EMPTY_RANGE_FILTER);
-    setSelectedBudgetPreset(null);
-    setSelectedBoxOfficePreset(null);
-    setSelectedRatingPreset(null);
-    setSelectedVotePreset(null);
+    setSelectedBudgetBuckets([]);
+    setSelectedBoxOfficeBuckets([]);
+    setSelectedImdbRatingBuckets([]);
+    setSelectedImdbVoteCountBuckets([]);
     setSortValue('releaseDate');
   };
 
@@ -362,93 +355,41 @@ export function ArchivePage() {
     setSelectedCompanies((current) => current.filter((company) => company.id !== companyId));
   };
 
-  const handleBudgetPresetSelect = (presetLabel: string | null) => {
-    if (!presetLabel) {
-      setSelectedBudgetPreset(null);
-      setBudgetFilter((current) => ({ knownOnly: current.knownOnly }));
-      return;
-    }
-
-    const preset = BUDGET_PRESETS[presetLabel as BudgetPresetLabel];
-    setSelectedBudgetPreset(presetLabel as BudgetPresetLabel);
-    setBudgetFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
-  };
-
-  const handleBoxOfficePresetSelect = (presetLabel: string | null) => {
-    if (!presetLabel) {
-      setSelectedBoxOfficePreset(null);
-      setBoxOfficeFilter((current) => ({ knownOnly: current.knownOnly }));
-      return;
-    }
-
-    const preset = BOX_OFFICE_PRESETS[presetLabel as BoxOfficePresetLabel];
-    setSelectedBoxOfficePreset(presetLabel as BoxOfficePresetLabel);
-    setBoxOfficeFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
-  };
-
-  const handleRatingPresetSelect = (presetLabel: string | null) => {
-    if (!presetLabel) {
-      setSelectedRatingPreset(null);
-      setImdbRatingFilter((current) => ({ knownOnly: current.knownOnly }));
-      return;
-    }
-
-    const preset = IMDB_RATING_PRESETS[presetLabel as ImdbRatingPresetLabel];
-    setSelectedRatingPreset(presetLabel as ImdbRatingPresetLabel);
-    setImdbRatingFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
-  };
-
-  const handleVotePresetSelect = (presetLabel: string | null) => {
-    if (!presetLabel) {
-      setSelectedVotePreset(null);
-      setImdbVoteCountFilter((current) => ({ knownOnly: current.knownOnly }));
-      return;
-    }
-
-    const preset = IMDB_VOTE_PRESETS[presetLabel as ImdbVotePresetLabel];
-    setSelectedVotePreset(presetLabel as ImdbVotePresetLabel);
-    setImdbVoteCountFilter((current) => ({ ...preset, knownOnly: current.knownOnly }));
-  };
-
   return (
     <div className="min-h-screen bg-surface text-on-surface selection:bg-tertiary-container selection:text-on-tertiary-container">
       <TopBar />
 
       <FilterSidebar
-        boxOfficeFilter={boxOfficeFilter}
-        budgetFilter={budgetFilter}
+        budgetBucketOptions={budgetBucketOptions}
+        boxOfficeBucketOptions={boxOfficeBucketOptions}
         companyQuery={companyQuery}
         companySuggestions={companySuggestions}
         genreOptions={genreOptions}
-        imdbRatingFilter={imdbRatingFilter}
-        imdbVoteCountFilter={imdbVoteCountFilter}
+        imdbRatingBucketOptions={imdbRatingBucketOptions}
+        imdbVoteCountBucketOptions={imdbVoteCountBucketOptions}
         isCompanyLoading={isCompanyLoading}
         isPeopleLoading={isPeopleLoading}
         peopleQuery={peopleQuery}
         peopleSuggestions={peopleSuggestions}
-        selectedBoxOfficePreset={selectedBoxOfficePreset}
-        selectedBudgetPreset={selectedBudgetPreset}
+        selectedBudgetBuckets={selectedBudgetBuckets}
+        selectedBoxOfficeBuckets={selectedBoxOfficeBuckets}
         selectedCompanies={selectedCompanies}
-        selectedRatingPreset={selectedRatingPreset}
-        selectedVotePreset={selectedVotePreset}
         selectedFilmTypes={selectedFilmTypes}
         selectedGenres={selectedGenres}
+        selectedImdbRatingBuckets={selectedImdbRatingBuckets}
+        selectedImdbVoteCountBuckets={selectedImdbVoteCountBuckets}
         selectedPeople={selectedPeople}
         selectedYears={selectedYears}
         typeOptions={typeOptions}
         years={years}
-        onBoxOfficeFilterChange={setBoxOfficeFilter}
-        onBoxOfficePresetSelect={handleBoxOfficePresetSelect}
-        onBudgetFilterChange={setBudgetFilter}
-        onBudgetPresetSelect={handleBudgetPresetSelect}
+        onBoxOfficeBucketToggle={(value) => setSelectedBoxOfficeBuckets((current) => toggleValue(current, value))}
+        onBudgetBucketToggle={(value) => setSelectedBudgetBuckets((current) => toggleValue(current, value))}
         onClearAll={clearAll}
         onCompanyQueryChange={setCompanyQuery}
-        onImdbRatingFilterChange={setImdbRatingFilter}
-        onImdbVoteCountFilterChange={setImdbVoteCountFilter}
-        onRatingPresetSelect={handleRatingPresetSelect}
-        onVotePresetSelect={handleVotePresetSelect}
         onFilmTypeToggle={(value) => setSelectedFilmTypes((current) => toggleValue(current, value))}
         onGenreToggle={(value) => setSelectedGenres((current) => toggleValue(current, value))}
+        onImdbRatingBucketToggle={(value) => setSelectedImdbRatingBuckets((current) => toggleValue(current, value))}
+        onImdbVoteCountBucketToggle={(value) => setSelectedImdbVoteCountBuckets((current) => toggleValue(current, value))}
         onPeopleQueryChange={setPeopleQuery}
         onRemoveCompany={handleRemoveCompany}
         onRemovePerson={handleRemovePerson}
@@ -458,42 +399,38 @@ export function ArchivePage() {
       />
 
       <MobileFilterDrawer
-        boxOfficeFilter={boxOfficeFilter}
-        budgetFilter={budgetFilter}
+        budgetBucketOptions={budgetBucketOptions}
+        boxOfficeBucketOptions={boxOfficeBucketOptions}
         companyQuery={companyQuery}
         companySuggestions={companySuggestions}
         genreOptions={genreOptions}
-        imdbRatingFilter={imdbRatingFilter}
-        imdbVoteCountFilter={imdbVoteCountFilter}
+        imdbRatingBucketOptions={imdbRatingBucketOptions}
+        imdbVoteCountBucketOptions={imdbVoteCountBucketOptions}
         isCompanyLoading={isCompanyLoading}
         isOpen={isMobileFiltersOpen}
         isPeopleLoading={isPeopleLoading}
         peopleQuery={peopleQuery}
         peopleSuggestions={peopleSuggestions}
-        selectedBoxOfficePreset={selectedBoxOfficePreset}
-        selectedBudgetPreset={selectedBudgetPreset}
+        selectedBudgetBuckets={selectedBudgetBuckets}
+        selectedBoxOfficeBuckets={selectedBoxOfficeBuckets}
         selectedCompanies={selectedCompanies}
-        selectedRatingPreset={selectedRatingPreset}
-        selectedVotePreset={selectedVotePreset}
         selectedFilmTypes={selectedFilmTypes}
         selectedGenres={selectedGenres}
+        selectedImdbRatingBuckets={selectedImdbRatingBuckets}
+        selectedImdbVoteCountBuckets={selectedImdbVoteCountBuckets}
         selectedPeople={selectedPeople}
         selectedYears={selectedYears}
         typeOptions={typeOptions}
         years={years}
-        onBoxOfficeFilterChange={setBoxOfficeFilter}
-        onBoxOfficePresetSelect={handleBoxOfficePresetSelect}
-        onBudgetFilterChange={setBudgetFilter}
-        onBudgetPresetSelect={handleBudgetPresetSelect}
+        onBoxOfficeBucketToggle={(value) => setSelectedBoxOfficeBuckets((current) => toggleValue(current, value))}
+        onBudgetBucketToggle={(value) => setSelectedBudgetBuckets((current) => toggleValue(current, value))}
         onClearAll={clearAll}
         onClose={() => setIsMobileFiltersOpen(false)}
         onCompanyQueryChange={setCompanyQuery}
-        onImdbRatingFilterChange={setImdbRatingFilter}
-        onImdbVoteCountFilterChange={setImdbVoteCountFilter}
-        onRatingPresetSelect={handleRatingPresetSelect}
-        onVotePresetSelect={handleVotePresetSelect}
         onFilmTypeToggle={(value) => setSelectedFilmTypes((current) => toggleValue(current, value))}
         onGenreToggle={(value) => setSelectedGenres((current) => toggleValue(current, value))}
+        onImdbRatingBucketToggle={(value) => setSelectedImdbRatingBuckets((current) => toggleValue(current, value))}
+        onImdbVoteCountBucketToggle={(value) => setSelectedImdbVoteCountBuckets((current) => toggleValue(current, value))}
         onPeopleQueryChange={setPeopleQuery}
         onRemoveCompany={handleRemoveCompany}
         onRemovePerson={handleRemovePerson}
@@ -503,7 +440,7 @@ export function ArchivePage() {
       />
 
       <main
-        className={`mt-16 min-h-screen px-4 py-4 transition-[margin] duration-200 ease-out sm:px-6 sm:py-6 lg:ml-80 ${
+        className={`mt-16 min-h-screen px-4 py-4 transition-[margin] duration-200 ease-out sm:px-6 sm:py-6 lg:ml-[22rem] ${
           isDetailsPanelOpen ? 'lg:mr-[380px]' : 'lg:mr-0'
         }`}
       >

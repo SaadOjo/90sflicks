@@ -26,12 +26,6 @@ export interface CompanySuggestion {
   movieCount: number;
 }
 
-export interface NumericRangeFilter {
-  knownOnly: boolean;
-  min?: number;
-  max?: number;
-}
-
 export interface ArchiveMovieListItem {
   id: number;
   title: string;

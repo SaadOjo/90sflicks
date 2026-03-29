@@ -1,4 +1,4 @@
-import type { ArchiveMovie, NumericRangeFilter } from '../../shared/types/archive';
+import type { ArchiveMovie } from '../../shared/types/archive';
 import type { ArchiveFacetsResponse, ArchiveMoviesResponse } from '../../shared/types/api';
 import type { SortOption } from './archiveFilters';
 
@@ -10,10 +10,10 @@ export interface ArchiveRequestFilters {
   selectedFilmTypes: string[];
   selectedPersonIds: string[];
   selectedCompanyIds: string[];
-  budgetFilter: NumericRangeFilter;
-  boxOfficeFilter: NumericRangeFilter;
-  imdbRatingFilter: NumericRangeFilter;
-  imdbVoteCountFilter: NumericRangeFilter;
+  selectedBudgetBuckets: string[];
+  selectedBoxOfficeBuckets: string[];
+  selectedImdbRatingBuckets: string[];
+  selectedImdbVoteCountBuckets: string[];
 }
 
 interface RequestOptions {
@@ -26,20 +26,6 @@ function appendCsv(params: URLSearchParams, key: string, values: Array<string | 
   }
 }
 
-function appendRangeParams(params: URLSearchParams, prefix: 'budget' | 'boxOffice' | 'imdbRating' | 'imdbVoteCount', filter: NumericRangeFilter) {
-  if (filter.knownOnly) {
-    params.set(`${prefix}KnownOnly`, 'true');
-  }
-
-  if (filter.min != null) {
-    params.set(`${prefix}Min`, String(filter.min));
-  }
-
-  if (filter.max != null) {
-    params.set(`${prefix}Max`, String(filter.max));
-  }
-}
-
 function buildFilterSearchParams(filters: ArchiveRequestFilters): URLSearchParams {
   const params = new URLSearchParams();
 
@@ -48,10 +34,10 @@ function buildFilterSearchParams(filters: ArchiveRequestFilters): URLSearchParam
   appendCsv(params, 'filmTypes', filters.selectedFilmTypes);
   appendCsv(params, 'personIds', filters.selectedPersonIds);
   appendCsv(params, 'companyIds', filters.selectedCompanyIds);
-  appendRangeParams(params, 'budget', filters.budgetFilter);
-  appendRangeParams(params, 'boxOffice', filters.boxOfficeFilter);
-  appendRangeParams(params, 'imdbRating', filters.imdbRatingFilter);
-  appendRangeParams(params, 'imdbVoteCount', filters.imdbVoteCountFilter);
+  appendCsv(params, 'budgetBuckets', filters.selectedBudgetBuckets);
+  appendCsv(params, 'boxOfficeBuckets', filters.selectedBoxOfficeBuckets);
+  appendCsv(params, 'imdbRatingBuckets', filters.selectedImdbRatingBuckets);
+  appendCsv(params, 'imdbVoteCountBuckets', filters.selectedImdbVoteCountBuckets);
 
   return params;
 }

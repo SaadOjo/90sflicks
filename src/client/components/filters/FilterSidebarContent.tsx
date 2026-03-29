@@ -1,20 +1,25 @@
-import type { CompanySuggestion, MovieCompanyRole, MoviePersonRole, NumericRangeFilter, PersonSuggestion } from '../../../shared/types/archive';
+import type { CompanySuggestion, MovieCompanyRole, MoviePersonRole, PersonSuggestion } from '../../../shared/types/archive';
 import type { SelectOption, YearOption } from '../../lib/archiveFilters';
 import { formatFilmType } from '../../lib/formatters';
 import { AutocompleteFilterSection } from './AutocompleteFilterSection';
-import { FinancialFilterSection } from './FinancialFilterSection';
-import { RatingFilterSection } from './RatingFilterSection';
 import { SelectFilterSection } from './SelectFilterSection';
-import { VoteCountFilterSection } from './VoteCountFilterSection';
 import { YearFilterSection } from './YearFilterSection';
 
 interface FilterSidebarContentProps {
   selectedYears: number[];
   selectedGenres: string[];
   selectedFilmTypes: string[];
+  selectedBudgetBuckets: string[];
+  selectedBoxOfficeBuckets: string[];
+  selectedImdbRatingBuckets: string[];
+  selectedImdbVoteCountBuckets: string[];
   years: YearOption[];
   genreOptions: SelectOption[];
   typeOptions: SelectOption[];
+  budgetBucketOptions: SelectOption[];
+  boxOfficeBucketOptions: SelectOption[];
+  imdbRatingBucketOptions: SelectOption[];
+  imdbVoteCountBucketOptions: SelectOption[];
   peopleQuery: string;
   selectedPeople: PersonSuggestion[];
   peopleSuggestions: PersonSuggestion[];
@@ -23,57 +28,21 @@ interface FilterSidebarContentProps {
   selectedCompanies: CompanySuggestion[];
   companySuggestions: CompanySuggestion[];
   isCompanyLoading: boolean;
-  budgetFilter: NumericRangeFilter;
-  boxOfficeFilter: NumericRangeFilter;
-  imdbRatingFilter: NumericRangeFilter;
-  imdbVoteCountFilter: NumericRangeFilter;
-  selectedBudgetPreset: string | null;
-  selectedBoxOfficePreset: string | null;
-  selectedRatingPreset: string | null;
-  selectedVotePreset: string | null;
   onYearToggle: (year: number) => void;
   onGenreToggle: (genre: string) => void;
   onFilmTypeToggle: (filmType: string) => void;
+  onBudgetBucketToggle: (bucket: string) => void;
+  onBoxOfficeBucketToggle: (bucket: string) => void;
+  onImdbRatingBucketToggle: (bucket: string) => void;
+  onImdbVoteCountBucketToggle: (bucket: string) => void;
   onPeopleQueryChange: (value: string) => void;
   onSelectPerson: (person: PersonSuggestion) => void;
   onRemovePerson: (personId: string) => void;
   onCompanyQueryChange: (value: string) => void;
   onSelectCompany: (company: CompanySuggestion) => void;
   onRemoveCompany: (companyId: string) => void;
-  onBudgetFilterChange: (next: NumericRangeFilter) => void;
-  onBoxOfficeFilterChange: (next: NumericRangeFilter) => void;
-  onBudgetPresetSelect: (presetLabel: string | null) => void;
-  onBoxOfficePresetSelect: (presetLabel: string | null) => void;
-  onImdbRatingFilterChange: (next: NumericRangeFilter) => void;
-  onImdbVoteCountFilterChange: (next: NumericRangeFilter) => void;
-  onRatingPresetSelect: (presetLabel: string | null) => void;
-  onVotePresetSelect: (presetLabel: string | null) => void;
   onClearAll: () => void;
 }
-
-const BUDGET_PRESETS = [
-  { label: 'Under $10M', max: 10_000_000 },
-  { label: '$10M–$50M', min: 10_000_000, max: 50_000_000 },
-  { label: '$50M+', min: 50_000_000 },
-];
-
-const BOX_OFFICE_PRESETS = [
-  { label: 'Under $50M', max: 50_000_000 },
-  { label: '$50M–$200M', min: 50_000_000, max: 200_000_000 },
-  { label: '$200M+', min: 200_000_000 },
-];
-
-const RATING_PRESETS = [
-  { label: '5.0+', min: 5 },
-  { label: '7.0+', min: 7 },
-  { label: '8.0+', min: 8 },
-];
-
-const VOTE_PRESETS = [
-  { label: '1K+', min: 1_000 },
-  { label: '10K+', min: 10_000 },
-  { label: '100K+', min: 100_000 },
-];
 
 function formatPersonRole(role: string): string {
   switch (role as MoviePersonRole) {
@@ -105,9 +74,17 @@ export function FilterSidebarContent({
   selectedYears,
   selectedGenres,
   selectedFilmTypes,
+  selectedBudgetBuckets,
+  selectedBoxOfficeBuckets,
+  selectedImdbRatingBuckets,
+  selectedImdbVoteCountBuckets,
   years,
   genreOptions,
   typeOptions,
+  budgetBucketOptions,
+  boxOfficeBucketOptions,
+  imdbRatingBucketOptions,
+  imdbVoteCountBucketOptions,
   peopleQuery,
   selectedPeople,
   peopleSuggestions,
@@ -116,31 +93,19 @@ export function FilterSidebarContent({
   selectedCompanies,
   companySuggestions,
   isCompanyLoading,
-  budgetFilter,
-  boxOfficeFilter,
-  imdbRatingFilter,
-  imdbVoteCountFilter,
-  selectedBudgetPreset,
-  selectedBoxOfficePreset,
-  selectedRatingPreset,
-  selectedVotePreset,
   onYearToggle,
   onGenreToggle,
   onFilmTypeToggle,
+  onBudgetBucketToggle,
+  onBoxOfficeBucketToggle,
+  onImdbRatingBucketToggle,
+  onImdbVoteCountBucketToggle,
   onPeopleQueryChange,
   onSelectPerson,
   onRemovePerson,
   onCompanyQueryChange,
   onSelectCompany,
   onRemoveCompany,
-  onBudgetFilterChange,
-  onBoxOfficeFilterChange,
-  onBudgetPresetSelect,
-  onBoxOfficePresetSelect,
-  onImdbRatingFilterChange,
-  onImdbVoteCountFilterChange,
-  onRatingPresetSelect,
-  onVotePresetSelect,
   onClearAll,
 }: FilterSidebarContentProps) {
   return (
@@ -152,13 +117,7 @@ export function FilterSidebarContent({
       <div className="divide-y divide-slate-200 [&>section]:py-6 [&>section:first-child]:pt-0 [&>section:last-child]:pb-0">
         <YearFilterSection selectedYears={selectedYears} years={years} onYearToggle={onYearToggle} />
 
-        <SelectFilterSection
-          emptyLabel="All genres"
-          options={genreOptions}
-          selectedValues={selectedGenres}
-          title="Genres"
-          onToggle={onGenreToggle}
-        />
+        <SelectFilterSection emptyLabel="All genres" options={genreOptions} selectedValues={selectedGenres} title="Genres" onToggle={onGenreToggle} />
 
         <SelectFilterSection
           emptyLabel="All types"
@@ -195,33 +154,36 @@ export function FilterSidebarContent({
           onSelect={onSelectCompany}
         />
 
-        <FinancialFilterSection
-          boxOfficeFilter={boxOfficeFilter}
-          boxOfficePresets={BOX_OFFICE_PRESETS}
-          budgetFilter={budgetFilter}
-          budgetPresets={BUDGET_PRESETS}
-          selectedBoxOfficePreset={selectedBoxOfficePreset}
-          selectedBudgetPreset={selectedBudgetPreset}
-          onBoxOfficeKnownOnlyChange={(checked) => onBoxOfficeFilterChange({ ...boxOfficeFilter, knownOnly: checked })}
-          onBoxOfficePresetSelect={onBoxOfficePresetSelect}
-          onBudgetKnownOnlyChange={(checked) => onBudgetFilterChange({ ...budgetFilter, knownOnly: checked })}
-          onBudgetPresetSelect={onBudgetPresetSelect}
+        <SelectFilterSection
+          emptyLabel="All budgets"
+          options={budgetBucketOptions}
+          selectedValues={selectedBudgetBuckets}
+          title="Budget"
+          onToggle={onBudgetBucketToggle}
         />
 
-        <RatingFilterSection
-          imdbRatingFilter={imdbRatingFilter}
-          ratingPresets={RATING_PRESETS}
-          selectedRatingPreset={selectedRatingPreset}
-          onKnownOnlyChange={(checked) => onImdbRatingFilterChange({ ...imdbRatingFilter, knownOnly: checked })}
-          onPresetSelect={onRatingPresetSelect}
+        <SelectFilterSection
+          emptyLabel="All box office"
+          options={boxOfficeBucketOptions}
+          selectedValues={selectedBoxOfficeBuckets}
+          title="Box office"
+          onToggle={onBoxOfficeBucketToggle}
         />
 
-        <VoteCountFilterSection
-          imdbVoteCountFilter={imdbVoteCountFilter}
-          selectedVotePreset={selectedVotePreset}
-          votePresets={VOTE_PRESETS}
-          onKnownOnlyChange={(checked) => onImdbVoteCountFilterChange({ ...imdbVoteCountFilter, knownOnly: checked })}
-          onPresetSelect={onVotePresetSelect}
+        <SelectFilterSection
+          emptyLabel="All ratings"
+          options={imdbRatingBucketOptions}
+          selectedValues={selectedImdbRatingBuckets}
+          title="IMDb rating"
+          onToggle={onImdbRatingBucketToggle}
+        />
+
+        <SelectFilterSection
+          emptyLabel="All vote counts"
+          options={imdbVoteCountBucketOptions}
+          selectedValues={selectedImdbVoteCountBuckets}
+          title="IMDb votes"
+          onToggle={onImdbVoteCountBucketToggle}
         />
       </div>
 

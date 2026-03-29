@@ -1,7 +1,15 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { ArchiveMovie, ArchiveMovieListItem, MovieCompanyCredit, MovieCredit, NumericRangeFilter } from '../../shared/types/archive';
+import type { ArchiveMovie, ArchiveMovieListItem, MovieCompanyCredit, MovieCredit } from '../../shared/types/archive';
 import type { ArchiveFacetsResponse, ArchiveFilmTypeFacet, ArchiveMoviesResponse } from '../../shared/types/api';
+import {
+  BOX_OFFICE_BUCKETS,
+  BUDGET_BUCKETS,
+  IMDB_RATING_BUCKETS,
+  IMDB_VOTE_COUNT_BUCKETS,
+  buildNumericBucketClause,
+  countNumericBuckets,
+} from './numericBuckets';
 
 export type SortOption = 'releaseDate' | 'title' | 'boxOffice' | 'budget' | 'imdbRating';
 
@@ -11,10 +19,10 @@ export interface ArchiveQueryFilters {
   filmTypes: string[];
   personIds: number[];
   companyIds: number[];
-  budgetFilter: NumericRangeFilter;
-  boxOfficeFilter: NumericRangeFilter;
-  imdbRatingFilter: NumericRangeFilter;
-  imdbVoteCountFilter: NumericRangeFilter;
+  budgetBuckets: string[];
+  boxOfficeBuckets: string[];
+  imdbRatingBuckets: string[];
+  imdbVoteCountBuckets: string[];
   sort: SortOption;
   page: number;
   pageSize: number;
@@ -106,33 +114,17 @@ function parseFilmTypeFilter(values: string[]): { rawValues: string[]; includeUn
   return { rawValues: Array.from(new Set(rawValues)), includeUnknown };
 }
 
-function appendNumericRangeFilter(
-  alias: string,
-  column: string,
-  filter: NumericRangeFilter,
-  clauses: string[],
-  params: unknown[],
-) {
-  const qualifiedColumn = `${alias}.${column}`;
-
-  if (filter.knownOnly && filter.min == null && filter.max == null) {
-    clauses.push(`${qualifiedColumn} IS NOT NULL`);
-  }
-
-  if (filter.min != null) {
-    clauses.push(`${qualifiedColumn} >= ?`);
-    params.push(filter.min);
-  }
-
-  if (filter.max != null) {
-    clauses.push(`${qualifiedColumn} <= ?`);
-    params.push(filter.max);
-  }
-}
-
 function buildMovieWhereClause(
   filters: ArchiveQueryFilters,
-  excludedFacet: 'years' | 'genres' | 'filmTypes' | null = null,
+  excludedFacet:
+    | 'years'
+    | 'genres'
+    | 'filmTypes'
+    | 'budgetBuckets'
+    | 'boxOfficeBuckets'
+    | 'imdbRatingBuckets'
+    | 'imdbVoteCountBuckets'
+    | null = null,
 ): { sql: string; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
@@ -197,10 +189,33 @@ function buildMovieWhereClause(
     params.push(...filters.companyIds);
   }
 
-  appendNumericRangeFilter('m', 'budget', filters.budgetFilter, clauses, params);
-  appendNumericRangeFilter('m', 'box_office', filters.boxOfficeFilter, clauses, params);
-  appendNumericRangeFilter('m', 'imdb_rating', filters.imdbRatingFilter, clauses, params);
-  appendNumericRangeFilter('m', 'imdb_vote_count', filters.imdbVoteCountFilter, clauses, params);
+  if (excludedFacet !== 'budgetBuckets') {
+    const budgetClause = buildNumericBucketClause('m', 'budget', filters.budgetBuckets, BUDGET_BUCKETS, params);
+    if (budgetClause) {
+      clauses.push(budgetClause);
+    }
+  }
+
+  if (excludedFacet !== 'boxOfficeBuckets') {
+    const boxOfficeClause = buildNumericBucketClause('m', 'box_office', filters.boxOfficeBuckets, BOX_OFFICE_BUCKETS, params);
+    if (boxOfficeClause) {
+      clauses.push(boxOfficeClause);
+    }
+  }
+
+  if (excludedFacet !== 'imdbRatingBuckets') {
+    const imdbRatingClause = buildNumericBucketClause('m', 'imdb_rating', filters.imdbRatingBuckets, IMDB_RATING_BUCKETS, params);
+    if (imdbRatingClause) {
+      clauses.push(imdbRatingClause);
+    }
+  }
+
+  if (excludedFacet !== 'imdbVoteCountBuckets') {
+    const imdbVoteCountClause = buildNumericBucketClause('m', 'imdb_vote_count', filters.imdbVoteCountBuckets, IMDB_VOTE_COUNT_BUCKETS, params);
+    if (imdbVoteCountClause) {
+      clauses.push(imdbVoteCountClause);
+    }
+  }
 
   return {
     sql: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '',
@@ -433,13 +448,6 @@ export function parseArchiveFilters(url: URL): ArchiveQueryFilters {
       .map((value) => value.trim())
       .filter(Boolean);
 
-  const parseNumberParam = (key: string) => {
-    const value = url.searchParams.get(key);
-    if (!value) return undefined;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  };
-
   const parseBooleanParam = (key: string) => url.searchParams.get(key) === 'true';
 
   const sortValue = (url.searchParams.get('sort') ?? 'releaseDate') as SortOption;
@@ -455,26 +463,10 @@ export function parseArchiveFilters(url: URL): ArchiveQueryFilters {
     filmTypes: parseCsvStrings('filmTypes'),
     personIds: parseCsvNumbers('personIds'),
     companyIds: parseCsvNumbers('companyIds'),
-    budgetFilter: {
-      knownOnly: parseBooleanParam('budgetKnownOnly'),
-      min: parseNumberParam('budgetMin'),
-      max: parseNumberParam('budgetMax'),
-    },
-    boxOfficeFilter: {
-      knownOnly: parseBooleanParam('boxOfficeKnownOnly'),
-      min: parseNumberParam('boxOfficeMin'),
-      max: parseNumberParam('boxOfficeMax'),
-    },
-    imdbRatingFilter: {
-      knownOnly: parseBooleanParam('imdbRatingKnownOnly'),
-      min: parseNumberParam('imdbRatingMin'),
-      max: parseNumberParam('imdbRatingMax'),
-    },
-    imdbVoteCountFilter: {
-      knownOnly: parseBooleanParam('imdbVoteCountKnownOnly'),
-      min: parseNumberParam('imdbVoteCountMin'),
-      max: parseNumberParam('imdbVoteCountMax'),
-    },
+    budgetBuckets: parseCsvStrings('budgetBuckets'),
+    boxOfficeBuckets: parseCsvStrings('boxOfficeBuckets'),
+    imdbRatingBuckets: parseCsvStrings('imdbRatingBuckets'),
+    imdbVoteCountBuckets: parseCsvStrings('imdbVoteCountBuckets'),
     sort,
     page,
     pageSize,
@@ -512,7 +504,7 @@ export async function getArchiveMovieById(db: D1Database, movieId: number): Prom
 }
 
 export async function getArchiveFacets(db: D1Database, filters: ArchiveQueryFilters): Promise<ArchiveFacetsResponse> {
-  const [indexedRow, yearsResult, genresResult, filmTypesResult] = await Promise.all([
+  const [indexedRow, yearsResult, genresResult, filmTypesResult, budgetRowsResult, boxOfficeRowsResult, imdbRatingRowsResult, imdbVoteCountRowsResult] = await Promise.all([
     sqlFirst<{ indexedCount: number }>(db, 'SELECT COUNT(*) AS indexedCount FROM movie'),
     (async () => {
       const built = buildMovieWhereClause(filters, 'years');
@@ -546,6 +538,22 @@ export async function getArchiveFacets(db: D1Database, filters: ArchiveQueryFilt
         built.params,
       );
     })(),
+    (async () => {
+      const built = buildMovieWhereClause(filters, 'budgetBuckets');
+      return sqlAll<{ value: number | null }>(db, `SELECT m.budget AS value FROM movie m ${built.sql}`, built.params);
+    })(),
+    (async () => {
+      const built = buildMovieWhereClause(filters, 'boxOfficeBuckets');
+      return sqlAll<{ value: number | null }>(db, `SELECT m.box_office AS value FROM movie m ${built.sql}`, built.params);
+    })(),
+    (async () => {
+      const built = buildMovieWhereClause(filters, 'imdbRatingBuckets');
+      return sqlAll<{ value: number | null }>(db, `SELECT m.imdb_rating AS value FROM movie m ${built.sql}`, built.params);
+    })(),
+    (async () => {
+      const built = buildMovieWhereClause(filters, 'imdbVoteCountBuckets');
+      return sqlAll<{ value: number | null }>(db, `SELECT m.imdb_vote_count AS value FROM movie m ${built.sql}`, built.params);
+    })(),
   ]);
 
   const yearCounts = new Map<number, number>();
@@ -564,5 +572,9 @@ export async function getArchiveFacets(db: D1Database, filters: ArchiveQueryFilt
     years: FULL_DECADE_YEARS.map((year) => ({ year, count: yearCounts.get(year) ?? 0 })),
     genres: (genresResult.results ?? []).map((row) => ({ name: row.name, count: row.count })),
     filmTypes,
+    budgetBuckets: countNumericBuckets((budgetRowsResult.results ?? []).map((row) => row.value), BUDGET_BUCKETS),
+    boxOfficeBuckets: countNumericBuckets((boxOfficeRowsResult.results ?? []).map((row) => row.value), BOX_OFFICE_BUCKETS),
+    imdbRatingBuckets: countNumericBuckets((imdbRatingRowsResult.results ?? []).map((row) => row.value), IMDB_RATING_BUCKETS),
+    imdbVoteCountBuckets: countNumericBuckets((imdbVoteCountRowsResult.results ?? []).map((row) => row.value), IMDB_VOTE_COUNT_BUCKETS),
   };
 }

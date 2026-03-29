@@ -14,8 +14,8 @@ export function DetailsPanel({ movie, isOpen, isLoading = false, error = null, o
     <>
       <button
         aria-label={isOpen ? 'Hide details panel' : 'Show details panel'}
-        className={`neo-toggle-tab fixed top-24 z-40 hidden h-16 w-5 items-center justify-center rounded-r-md border border-l-0 text-slate-500 transition-[right,color] duration-200 hover:text-slate-900 lg:flex ${
-          isOpen ? 'right-[360px]' : 'right-0'
+        className={`neo-toggle-tab fixed top-24 z-40 hidden h-16 w-5 items-center justify-center rounded-l-md border text-slate-500 transition-[right,color] duration-200 hover:text-slate-900 lg:flex ${
+          isOpen ? 'right-[379px] border-r-0' : 'right-0 border-r-0'
         }`}
         onClick={onToggle}
         type="button"

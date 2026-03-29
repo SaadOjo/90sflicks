@@ -1,25 +1,11 @@
 import { useState } from 'react';
 import type { YearOption } from '../../lib/archiveFilters';
+import { SelectionSummary } from './SelectionSummary';
 
 interface YearFilterSectionProps {
   years: YearOption[];
   selectedYears: number[];
   onYearToggle: (year: number) => void;
-}
-
-function getSelectionSummary(selectedYears: number[]): string {
-  if (selectedYears.length === 0) {
-    return 'All 90s';
-  }
-
-  const visibleYears = [...selectedYears].sort((left, right) => left - right).slice(0, 4);
-  const remainingCount = Math.max(0, selectedYears.length - visibleYears.length);
-
-  if (remainingCount === 0) {
-    return visibleYears.join(', ');
-  }
-
-  return `${visibleYears.join(', ')} +${remainingCount} more`;
 }
 
 export function YearFilterSection({ years, selectedYears, onYearToggle }: YearFilterSectionProps) {
@@ -37,7 +23,7 @@ export function YearFilterSection({ years, selectedYears, onYearToggle }: YearFi
       </button>
 
       <div className="mt-3 space-y-3">
-        <p className="text-xs text-slate-500">{getSelectionSummary(selectedYears)}</p>
+        <SelectionSummary emptyLabel="All 90s" selectedValues={[...selectedYears].sort((left, right) => left - right).map(String)} />
 
         {isOpen ? (
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">

@@ -16,11 +16,21 @@ export interface ArchiveFilmTypeFacet {
   count: number;
 }
 
+export interface ArchiveNumericBucketFacet {
+  key: string;
+  label: string;
+  count: number;
+}
+
 export interface ArchiveFacetsResponse {
   indexedCount: number;
   years: ArchiveYearFacet[];
   genres: ArchiveGenreFacet[];
   filmTypes: ArchiveFilmTypeFacet[];
+  budgetBuckets: ArchiveNumericBucketFacet[];
+  boxOfficeBuckets: ArchiveNumericBucketFacet[];
+  imdbRatingBuckets: ArchiveNumericBucketFacet[];
+  imdbVoteCountBuckets: ArchiveNumericBucketFacet[];
 }
 
 export interface ArchiveMoviesResponse {
